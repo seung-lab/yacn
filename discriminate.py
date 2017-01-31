@@ -229,6 +229,7 @@ class DiscrimModel(Model):
 		self.summary_op = summary_op
 
 
+	def get_name(self):
 	def init_log(self):
 		print ('What do you want to call this experiment?')
 		date = datetime.now().strftime("%j-%H-%M-%S")
