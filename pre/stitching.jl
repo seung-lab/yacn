@@ -113,13 +113,22 @@ for i in 1:length(valid_sets)
 	end
 end
 
-h=[]
+
+function decision_value(r_intersect, r_a, r_b)
+	return r_intersect.size > 10000 && (r_intersect.size/r_a.size > 0.33 || r_intersect.size/r_b.size > 0.33)
+end
+
 for i in 1:length(segs)
 	for j in i+1:length(segs)
 		d,di,dj = intersection(segs[i],segs[j],i,j)
 		for k in d
 			if k[1][1].segment_id in valid_sets[i] && k[1][2].segment_id in valid_sets[j]
-				push!(h, (k[2], di[k[1][1]], dj[k[1][2]]))
+				if decision_value(k[2], di[k[1][1]], dj[k[1][2]])
+					union!(ds, k[1][1], k[1][2])
+					println("merged")
+				else
+					println("not merged")
+				end
 			end
 		end
 	end
