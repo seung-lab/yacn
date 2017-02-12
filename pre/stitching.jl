@@ -118,11 +118,13 @@ for i in 1:length(valid_sets)
 	end
 end
 =#
-
-for i in 1:length(segs)
-	for j in segs[i]
+function add_ids(ds,seg,i)
+	for j in seg
 		push!(ds,ID(i,j))
 	end
+end
+for i in 1:length(segs)
+	add_ids(ds,segs[i],i)
 end
 
 
