@@ -161,6 +161,6 @@ end
 
 r=remapper(ID)
 for i in 1:length(segs)
-	segs[i] = map(x->r(ID(i,x)), segs)
+	segs[i] = map(x->r(ID(i,x)), segs[i])
 end
 dump(segs)
