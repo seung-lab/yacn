@@ -106,10 +106,22 @@ for rx in xindices[1:2], ry in yindices[1:1], rz in zindices
 end
 
 ds=DisjointSets{ID}([])
+for i in 1:length(valid_sets)
+	push!(ds, ID(i,0))
+	union!(ds, ID(i,0), ID(1,0))
+end
 
+#=
 for i in 1:length(valid_sets)
 	for j in valid_sets[i]
 		push!(ds, ID(i,j))
+	end
+end
+=#
+
+for i in 1:length(segs)
+	for j in segs[i]
+		push!(ds,ID(i,j))
 	end
 end
 
@@ -133,4 +145,22 @@ for i in 1:length(segs)
 		end
 	end
 end
-println(h)
+
+
+function remapper{T}(::Type{T})
+	d=Dict{T,Int}()
+	n=1
+	function r(x)
+		if !haskey(d,x)
+			d[x]=n
+		end
+		return d[x]
+	end
+	return r
+end
+
+r=remapper(ID)
+for i in 1:length(segs)
+	segs[i] = map(x->r(ID(i,x)), segs)
+end
+dump(segs)
