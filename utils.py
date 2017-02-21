@@ -20,20 +20,19 @@ class Model():
 
 	def train(self, nsteps=100000, checkpoint_interval=1000):
 		self.init_log()
-		print ('log initialized')
 		for i in xrange(nsteps):
 			try:
 				with DelayedKeyboardInterrupt():
 					t = time.time()
 					if i==5:
 						_, quick_summary = self.sess.run(
-							[self.train_op, self.quick_summary_op], options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE), run_metadata=self.run_metadata)
+							[self.train_op, self.quick_summary_op], options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE), run_metadata=self.run_metadata, feed_dict=self.train_feed_dict())
 						trace = timeline.Timeline(step_stats=self.run_metadata.step_stats)
 						trace_file = open('timeline.ctf.json', 'w')
 						trace_file.write(trace.generate_chrome_trace_format())
 					else:
 						_, quick_summary = self.sess.run(
-							[self.train_op, self.quick_summary_op])
+							[self.train_op, self.quick_summary_op], feed_dict=self.train_feed_dict())
 
 					elapsed = time.time() - t
 					print("elapsed: ", elapsed)
@@ -43,12 +42,31 @@ class Model():
 						print("checkpointing...")
 						step = self.sess.run(self.step)
 						self.saver.save(self.sess, self.logdir + "model" + str(step) + ".ckpt")
-						self.summary_writer.add_summary(self.sess.run(self.summary_op), step)
+						self.summary_writer.add_summary(self.sess.run(self.summary_op, feed_dict=self.train_feed_dict()), step)
 						self.summary_writer.flush()
 						print("done")
 			except KeyboardInterrupt:
 				break
 				#self.interrupt()
+
+	def init_log(self):
+		date = datetime.now().strftime("%j-%H-%M-%S")
+		filename=self.get_filename()
+		if self.name is None:
+			print ('What do you want to call this experiment?')
+			self.name=raw_input('run name: ')
+		exp_name = date + '-' + self.name
+
+		logdir = os.path.expanduser("~/experiments/{}/{}/".format(filename,exp_name))
+		self.logdir = logdir
+
+		print('logging to {}'.format(logdir))
+		if not os.path.exists(logdir):
+			os.makedirs(logdir)
+		#save_experiment(exp_name)
+		self.summary_writer = tf.summary.FileWriter(
+			logdir, graph=self.sess.graph)
+		print ('log initialized')
 
 class Volume():
 	def __init__(self, A, patch_size):
@@ -60,7 +78,6 @@ class Volume():
 		patch_size=self.patch_size
 		with tf.device("/cpu:0"):
 			corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
-			corner = tf.unpack(corner)
 			return tf.stop_gradient(tf.slice(A,corner,patch_size))
 
 	def __setitem__(A, focus, vol):
@@ -69,18 +86,25 @@ class Volume():
 		with tf.device("/cpu:0"):
 			corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
 			corner = tf.Print(corner,[corner])
-			corner = tf.unpack(corner)
-			return tf.stop_gradient(A[corner[0]:corner[0]+patch_size[0],
-						corner[1]:corner[1]+patch_size[1],
-						corner[2]:corner[2]+patch_size[2]].assign(vol))
+			corner = tf.unstack(corner)
+			return tf.stop_gradient(A[tuple([slice(corner[i],corner[i]+patch_size[i]) for i in xrange(len(patch_size))])].assign(vol))
 
 def random_row(A):
 	index=tf.random_uniform([],minval=0,maxval=static_shape(A)[0],dtype=tf.int32)
 	return A[index,:]
+
 def unique(x):
-	tmp = tf.reshape(x, [-1])
-	tmp = tf.unique(tmp)[1]
+	tmp0 = tf.reshape(x, [-1])
+
+	#Ensure that zero is named zero
+	tmp = tf.unique(tmp0)[1] + 1
+	tmp = tmp * tf.to_int32(tf.not_equal(tmp0, 0))
+
 	return tf.reshape(tmp, static_shape(x))
+
+#Computes the unique elements in x excluding zero. Returns the result as an indicator function on [0...maxn]
+def unique_list(x,maxn):
+	return tf.to_float(tf.minimum(tf.unsorted_segment_sum(tf.ones_like(x), x, maxn),1)) * np.array([0]+[1]*(maxn-1))
 
 def KL(a,b):
 	return -a*tf.log(b/a)-(1-a)*tf.log((1-b)/(1-a))
@@ -142,6 +166,26 @@ def random_rotation(x):
 	perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2]), lambda: tf.constant([0,2,1]))
 	return tf.reshape(tf.transpose(tf.reverse(x, rand_bool([3])), perm=perm),static_shape(x))
 
+def random_rotation_padded(x):
+	perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2,3,4]), lambda: tf.constant([0,1,3,2,4]))
+	return tf.reshape(tf.transpose(tf.reverse(x, tf.concat(0,[[False],rand_bool([3]),[False]])), perm=perm),static_shape(x))
+
+class RandomRotation():
+	def __init__(self):
+		self.perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2]), lambda: tf.constant([0,2,1]))
+		self.rev = rand_bool([3])
+
+	def __call__(self,x):
+		return tf.reshape(tf.transpose(tf.reverse(x, self.rev), perm=self.perm), static_shape(x))
+
+class RandomRotationPadded():
+	def __init__(self):
+		self.perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2,3,4]), lambda: tf.constant([0,1,3,2,4]))
+		self.rev = np.array([1,2,3])
+
+	def __call__(self,x):
+		return tf.reshape(tf.transpose(tf.reverse(x, self.rev), perm=self.perm), static_shape(x))
+
 def bounded_cross_entropy(guess,truth):
 	guess = 0.999998*guess + 0.000001
 	return  - truth * tf.log(guess) - (1-truth) * tf.log(1-guess)
@@ -151,9 +195,6 @@ def lrelu(x):
 
 def prelu(x,n):
 	return tf.nn.relu(x) - n*tf.pow((tf.nn.relu(-x)+1),1.0/n) + n
-
-def is_valid(nfeatures,i,j):
-	return (i <= j and i >= 0 and j >= 0 and i < len(nfeatures) and j < len(nfeatures[i]) and nfeatures[i][j] > 0)
 
 def conditional_map(fun,lst,cond,default):
 	return [tf.cond(c, lambda: fun(l), lambda: default) for l,c in zip(lst, cond)]
@@ -166,11 +207,11 @@ def get_pair(A,offset, patch_size):
 	os1 = map(lambda x: max(0,x) ,offset)
 	os2 = map(lambda x: max(0,-x),offset)
 	
-	A1 = A[os1[0]:patch_size[0]-os2[0],
+	A1 = A[:,os1[0]:patch_size[0]-os2[0],
 		os1[1]:patch_size[1]-os2[1],
 		os1[2]:patch_size[2]-os2[2],
 		:]
-	A2 = A[os2[0]:patch_size[0]-os1[0],
+	A2 = A[:,os2[0]:patch_size[0]-os1[0],
 		os2[1]:patch_size[1]-os1[1],
 		os2[2]:patch_size[2]-os1[2],
 		:]
@@ -184,17 +225,17 @@ def norm(A):
 
 def block_cat(A,B,C,D):
 	n=len(A.get_shape())
-	return tf.concat(n-2,[tf.concat(n-1,[A,B]),tf.concat(n-1,[C,D])])
+	return tf.concat([tf.concat([A,B],n-1),tf.concat([C,D],n-1)],n-2)
 
 def vec_cat(A,B):
 	n=len(A.get_shape())
-	return tf.concat(n-2,[A,B])
+	return tf.concat([A,B],n-2)
 
 def matmul(*l):
 	return reduce(tf.matmul,l)
 
 def batch_matmul(*l):
-	return reduce(tf.batch_matmul,l)
+	return reduce(tf.matmul,l)
 
 def batch_transpose(A):
 	n=len(A.get_shape())
@@ -241,10 +282,13 @@ def logdet(M):
 	return tf.reduce_sum(tf.log(tf.self_adjoint_eig(M)[0,:]))
 
 def collapse_image(x):
-	return tf.expand_dims(tf.concat(1, tf.unpack(x)),0)
+	ims=map(tf.unstack,tf.unstack(x))
+	ims = map(lambda l: tf.concat(l,1),ims)
+	ret=tf.expand_dims(tf.concat(ims,0),0)
+	return ret
 
 def image_summary(name, x):
-	return tf.image_summary(name,tf.transpose(collapse_image(x), perm=[3,1,2,0]), max_images=6)
+	return tf.summary.image(name,tf.transpose(collapse_image(x), perm=[3,1,2,0]), max_outputs=6)
 
 def image_slice_summary(name, x):
 	return tf.image_summary(name,x[16:17,:,:,:], max_images=6)
@@ -275,3 +319,7 @@ def identity_matrix(n):
 
 def static_shape(x):
 	return [x.value for x in x.get_shape()]
+
+def indicator(full, on_vals, maxn=10000):
+	tmp=tf.scatter_nd(on_vals, tf.ones_like(on_vals), [maxn])
+	return tf.gather_nd(on_vals,full)

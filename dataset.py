@@ -112,8 +112,20 @@ def load_allen_train():
 
 class Dataset2():
 	def __init__(self, directory,d):
+		self.directory=directory
 		for (k,v) in d.items():
 			setattr(self, k, h5read(directory + v))
+		if hasattr(self, "image"):
+			self.image = self.image.astype(np.float32)
+			if self.image.max() > 10:
+				print "dividing by 256"
+				self.image_full = self.image_full/256
+
+		if hasattr(self, "human_labels"):
+			self.human_labels = self.human_labels.astype(np.int32)
+
+		if hasattr(self, "machine_labels"):
+			self.machine_labels = self.machine_labels.astype(np.int32)
 
 class Dataset():
 	def __init__(self, directory, image=False, human_labels=False, machine_labels=False, semantic=False, vector=False, synapse=False, oracle_samples=False, mean_samples=False, machine_labels_name="machine_labels.h5", image_name = "image.h5", human_labels_name = "human_labels.h5", mean_samples_name = "mean_samples.h5"):
