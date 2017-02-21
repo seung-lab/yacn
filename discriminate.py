@@ -29,25 +29,24 @@ from tensorflow.python.client import timeline
 
 from utils import *
 import dataset
-from dataset import (gen, Dataset2, SNEMI3D_TRAIN_DIR, SNEMI3D_TEST_DIR, AC3_DIR, PIRIFORM_TRAIN_DIR, PIRIFORM_TEST_DIR, alternating_iterator)
+from dataset import (gen, Dataset2, alternating_iterator)
 import pythonzenity
-from viewer import validate
 
 class DiscrimModel(Model):
 	def __init__(self, patch_size, 
-				 train_data,
-				 test_data,
-				 train_samples,
-				 test_samples,
+				 truth_data,
+				 lies_data,
+				 truth_samples,
+				 lies_samples,
 				 devices, name=None):
 
 		self.name=name
 		self.summaries = []
 		self.devices = devices
 		self.patch_size = patch_size
-		self.train_full_size = train_data.shape
-		self.test_full_size = test_data.shape
-		N=10000
+		self.truth_full_size = truth_data.shape
+		self.lies_full_size = lies_data.shape
+		N=50000
 		k=1000
 
 		patchx,patchy,patchz = patch_size
@@ -64,21 +63,21 @@ class DiscrimModel(Model):
 			return static_constant_variable(x,initializer_feed_dict)
 
 		with tf.device("/cpu:0"):
-			full_labels_train = Volume(scv(train_data), patch_size)
-			full_labels_test = Volume(scv(test_data), patch_size)
-			validated = scv(np.zeros_like(test_data))
-			train_samples = scv(train_samples)
-			test_samples = scv(test_samples)
+			full_labels_truth = Volume(scv(truth_data), patch_size)
+			full_labels_lies = Volume(scv(lies_data), patch_size)
+			validated = scv(np.zeros_like(lies_data))
+			truth_samples = scv(truth_samples)
+			lies_samples = scv(lies_samples)
 
-			test_running_samples = scv(np.zeros((N,3),dtype=np.int32))
-			test_running_weights = scv(np.zeros((N,),dtype=np.float32))
-			self.test_running_samples = test_running_samples
-			self.test_running_weights = test_running_weights
+			lies_running_samples = scv(np.zeros((N,3),dtype=np.int32))
+			lies_running_weights = scv(np.zeros((N,),dtype=np.float32))
+			self.lies_running_samples = lies_running_samples
+			self.lies_running_weights = lies_running_weights
 
-			train_running_samples = scv(np.zeros((N,3),dtype=np.int32))
-			train_running_weights = scv(np.zeros((N,),dtype=np.float32))
-			self.train_running_samples = train_running_samples
-			self.train_running_weights = train_running_weights
+			truth_running_samples = scv(np.zeros((N,3),dtype=np.int32))
+			truth_running_weights = scv(np.zeros((N,),dtype=np.float32))
+			self.truth_running_samples = truth_running_samples
+			self.truth_running_weights = truth_running_weights
 			
 		with tf.name_scope('params'):
 			self.step=tf.Variable(0)
@@ -135,22 +134,22 @@ class DiscrimModel(Model):
 			extract_top = lambda x: tf.reduce_sum(w*x[-1])+b
 
 		def draw_old():
-			return tf.nn.top_k(-test_running_weights,k=k)[1][tf.random_uniform([],minval=0, maxval=k, dtype=tf.int32)]
+			return tf.nn.top_k(-lies_running_weights,k=k)[1][tf.random_uniform([],minval=0, maxval=k, dtype=tf.int32)]
 
 		def draw_new():
 			with tf.control_dependencies([pointer_var.assign(tf.mod(pointer_var+1,N))]):
-				with tf.control_dependencies([test_running_samples[tf.identity(pointer_var),:].assign(random_row(test_samples))]):
+				with tf.control_dependencies([lies_running_samples[tf.identity(pointer_var),:].assign(random_row(lies_samples))]):
 					return tf.identity(pointer_var)
 
 		iteration_type=tf.logical_or(rand_bool([]),tf.less(self.step, 100000*N))
 		pointer_var=tf.Variable(0)
 		pointer = tf.cond(iteration_type, draw_new, draw_old)
-		#test_factor = tf.cond(tf.greater(self.step,N), lambda: tf.constant(2.0), lambda: tf.constant(1.0))
+		#lies_factor = tf.cond(tf.greater(self.step,N), lambda: tf.constant(2.0), lambda: tf.constant(1.0))
 
 
-		focus_train=tf.reshape(random_row(train_samples),(3,))
-		focus_test=tf.reshape(test_running_samples[pointer, :],(3,))
-		focus_test=tf.Print(focus_test,[focus_test, pointer_var, pointer])
+		focus_truth=tf.reshape(random_row(truth_samples),(3,))
+		focus_lies=tf.reshape(lies_running_samples[pointer, :],(3,))
+		focus_lies=tf.Print(focus_lies,[focus_lies, pointer_var, pointer])
 		
 		def extract_central(inpt):
 			return tf.equal(inpt, inpt[patchx/2,patchy/2,patchz/2])
@@ -167,57 +166,57 @@ class DiscrimModel(Model):
 				return it5(it4(it3(it2(it1(initial(inpt))))))[0]+b0
 
 			#1 is correct and 0 is incorrect
-			train_glimpse = tf.to_float(extract_central(full_labels_train[focus_train]))
-			test_glimpse = tf.to_float(extract_central(full_labels_test[focus_test]))
-			test_compare = tf.to_float(extract_central(full_labels_train[focus_test]))
+			truth_glimpse = tf.to_float(extract_central(full_labels_truth[focus_truth]))
+			lies_glimpse = tf.to_float(extract_central(full_labels_lies[focus_lies]))
+			lies_compare = tf.to_float(extract_central(full_labels_truth[focus_lies]))
 
-			train_discrim = discriminate(train_glimpse)
-			test_discrim = discriminate(test_glimpse)
-			T,P,S = local_error(test_compare, test_glimpse)
-			test_factor = tf.cond(tf.logical_and(tf.less(tf.abs(T-S),1), tf.less(tf.abs(P-S),1)), lambda:tf.constant(0.0), lambda:tf.constant(1.0))
+			truth_discrim = discriminate(truth_glimpse)
+			lies_discrim = discriminate(lies_glimpse)
+			T,P,S = local_error(lies_compare, lies_glimpse)
+			lies_factor = tf.cond(tf.logical_and(tf.less(tf.abs(T-S),1), tf.less(tf.abs(P-S),1)), lambda:tf.constant(0.0), lambda:tf.constant(1.0))
 
-			reconstruction = reconstruct(test_glimpse)
+			reconstruction = reconstruct(lies_glimpse)
 			#self.summaries.extend([image_summary("occluded",occluded),
 			#	image_summary("reconstruction", tf.nn.sigmoid(reconstruction)),
 			#	])
 
-			#loss = tf.exp(tf.nn.relu(-train_discrim)) + tf.nn.elu(test_discrim)
-			#loss = 0.5*tf.exp(tf.nn.relu(-2*train_discrim)) + test_factor * tf.nn.relu(test_discrim+10)
+			#loss = tf.exp(tf.nn.relu(-truth_discrim)) + tf.nn.elu(lies_discrim)
+			#loss = 0.5*tf.exp(tf.nn.relu(-2*truth_discrim)) + lies_factor * tf.nn.relu(lies_discrim+10)
 
 
-			loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(test_discrim, test_factor))
-			reconstruction_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(reconstruction, tf_pad_shape(test_compare)))
+			loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(lies_discrim, lies_factor))
+			reconstruction_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(reconstruction, tf_pad_shape(lies_compare)))
+			self.test_inpt = tf.placeholder(shape=self.patch_size, dtype=tf.float32)
+			self.test_otpt = discriminate(self.test_inpt)
 
 
-		#decision = tf.reshape(tf.to_int32(tf.py_func(validate,[extract_central(get_glimpse(full_labels_test, self.worst_focus))],[tf.bool])),[])
-
-		#self.validate = set_glimpse(validated, self.worst_focus, tf.maximum(tf.to_int32(decision)*tf.to_int32(extract_central(get_glimpse(full_labels_test,self.worst_focus))), get_glimpse(validated, self.worst_focus)))
+		#decision = tf.reshape(tf.to_int32(tf.py_func(validate,[extract_central(get_glimpse(full_labels_lies, self.worst_focus))],[tf.bool])),[])
 
 		var_list = tf.get_collection(
 			tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
 
-		optimizer = tf.train.AdamOptimizer(0.0001, beta1=0.9, epsilon=0.1)
+		optimizer = tf.train.AdamOptimizer(0.0001*0, beta1=0.9, epsilon=0.1)
 		train_op = optimizer.minimize(1e5*loss + reconstruction_loss, var_list = var_list)
 
 		with tf.control_dependencies([train_op]):
 			with tf.control_dependencies([self.step.assign_add(1)]):
 				train_op = tf.group(
-						tf.Print(0, [tf.identity(self.step), loss, test_factor, T-S, P-S], message="step|loss"),
-						test_running_weights[pointer].assign(test_discrim),
-						train_running_weights[tf.mod(self.step,N)].assign(train_discrim),
+						tf.Print(0, [tf.identity(self.step), loss, lies_factor, T-S, P-S], message="step|loss"),
+						lies_running_weights[pointer].assign(lies_discrim),
+						truth_running_weights[tf.mod(self.step,N)].assign(truth_discrim),
 						)
 						
 				quick_summary_op = tf.merge_summary([
 					tf.scalar_summary("loss", loss),
 					tf.scalar_summary("reconstruction_loss", reconstruction_loss),
-					tf.scalar_summary("train_discrim", train_discrim),
-					tf.scalar_summary("test_discrim", test_discrim),
-					tf.scalar_summary("diff", train_discrim-test_discrim),
+					tf.scalar_summary("truth_discrim", truth_discrim),
+					tf.scalar_summary("lies_discrim", lies_discrim),
+					tf.scalar_summary("diff", truth_discrim-lies_discrim),
 				])
 
 		self.summaries.append(tf.scalar_summary("loss",loss))
-		self.summaries.append(tf.histogram_summary("test_running_weights",test_running_weights))
-		self.summaries.append(tf.histogram_summary("train_running_weights",train_running_weights))
+		self.summaries.append(tf.histogram_summary("lies_running_weights",lies_running_weights))
+		self.summaries.append(tf.histogram_summary("truth_running_weights",truth_running_weights))
 		summary_op = tf.merge_summary(self.summaries)
 
 		init = tf.initialize_all_variables()
@@ -229,33 +228,25 @@ class DiscrimModel(Model):
 		self.summary_op = summary_op
 
 
-	def get_name(self):
-	def init_log(self):
-		print ('What do you want to call this experiment?')
-		date = datetime.now().strftime("%j-%H-%M-%S")
-		filename=os.path.splitext(os.path.basename(__file__))[0]
-		if self.name is None:
-			self.name=raw_input('run name: ')
-		exp_name = date + '-' + self.name
+	def test(self,x):
+		x=[self.sess.run(self.test_otpt, feed_dict={self.test_inpt:x}) for i in xrange(4)]
+		return sum(x)/4
 
-		logdir = os.path.expanduser("~/experiments/{}/{}/".format(filename,exp_name))
-		self.logdir = logdir
+	def get_filename(self):
+		return os.path.splitext(os.path.basename(__file__))[0]
 
-		print('logging to {}, also created a branch called {}'
-			  .format(logdir, exp_name))
-		if not os.path.exists(logdir):
-			os.makedirs(logdir)
-		#save_experiment(exp_name)
-		self.summary_writer = tf.train.SummaryWriter(
-			logdir, graph=self.sess.graph)
 	def interrupt(self):
 		return
+
 	def export(self):
-		dataset.h5write("running_samples.h5",self.sess.run(self.test_running_samples))
-		dataset.h5write("running_weights.h5",self.sess.run(self.test_running_weights))
+		dataset.h5write(TRAIN.directory+"running_samples.h5",self.sess.run(self.lies_running_samples))
+		dataset.h5write(TRAIN.directory+"running_weights.h5",self.sess.run(self.lies_running_weights))
 
 TRAIN = Dataset2(
-os.path.expanduser("~/datasets/pinky_proofreading/ds/"),
+#os.path.expanduser("~/datasets/pinky_proofreading/ds/"),
+os.path.expanduser("/usr/people/jzung/seungmount/Omni/TracerTasks/pinky/proofreading/chunk_16513-18560_28801-30848_4003-4258.omni.files/ds/"),
+#os.path.expanduser("~/ds/"),
+
 {"mean_labels": "mean_labels.h5",
 	"human_labels": "human_labels.h5",
 	"samples": "mean_samples.h5",
@@ -266,18 +257,18 @@ args = {
 	"devices": ["/gpu:0"],
 	"patch_size": (32, 158, 158),
 	"name": "test",
-	"train_data": TRAIN.human_labels.astype(np.int32),
-	"train_samples": TRAIN.samples.astype(np.int32)[:,::-1]-1,
-	"test_data": TRAIN.mean_labels.astype(np.int32),
-	"test_samples": TRAIN.samples.astype(np.int32)[:,::-1]-1,
+	"truth_data": TRAIN.human_labels.astype(np.int32),
+	"truth_samples": TRAIN.samples.astype(np.int32)[:,::-1]-1,
+	"lies_data": TRAIN.mean_labels.astype(np.int32),
+	"lies_samples": TRAIN.samples.astype(np.int32)[:,::-1]-1,
 }
 
 #pp = pprint.PrettyPrinter(indent=4)
 #pp.pprint(args)
 main_model = DiscrimModel(**args)
-
+print("model initialized")
 if __name__ == '__main__':
-	#main_model.restore(pythonzenity.FileSelection())
+	main_model.restore(pythonzenity.FileSelection())
 	main_model.sess.run(main_model.step.assign(0))
 	main_model.train(nsteps=1000000)
 	main_model.export()
@@ -285,3 +276,4 @@ if __name__ == '__main__':
 	trace_file = open('timeline.ctf.json', 'w')
 	trace_file.write(trace.generate_chrome_trace_format())
 	print("done")
+
