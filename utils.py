@@ -30,6 +30,7 @@ class Model():
 						trace = timeline.Timeline(step_stats=self.run_metadata.step_stats)
 						trace_file = open('timeline.ctf.json', 'w')
 						trace_file.write(trace.generate_chrome_trace_format())
+						trace_file.flush()
 					else:
 						_, quick_summary = self.sess.run(
 							[self.train_op, self.quick_summary_op], feed_dict=self.train_feed_dict())
@@ -162,14 +163,6 @@ def bump_logit(x,y,z):
 def rand_bool(shape, prob=0.5):
 	return tf.less(tf.random_uniform(shape),prob)
 
-def random_rotation(x):
-	perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2]), lambda: tf.constant([0,2,1]))
-	return tf.reshape(tf.transpose(tf.reverse(x, rand_bool([3])), perm=perm),static_shape(x))
-
-def random_rotation_padded(x):
-	perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2,3,4]), lambda: tf.constant([0,1,3,2,4]))
-	return tf.reshape(tf.transpose(tf.reverse(x, tf.concat(0,[[False],rand_bool([3]),[False]])), perm=perm),static_shape(x))
-
 class RandomRotation():
 	def __init__(self):
 		self.perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2]), lambda: tf.constant([0,2,1]))
@@ -204,7 +197,6 @@ def extract_central(X):
 	return X[:,patch_size[0]/2:patch_size[0]/2+1,
 			patch_size[1]/2:patch_size[1]/2+1,
 			patch_size[2]/2:patch_size[2]/2+1,:]
-
 
 def norm(A):
 	return tf.reduce_sum(tf.square(A),reduction_indices=[3],keep_dims=True)

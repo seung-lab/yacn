@@ -59,6 +59,7 @@ class VectorLabelModel(Model):
 			full_image = Volume(scv(full_image), self.padded_patch_size)
 			full_human_labels = Volume(scv(full_human_labels), self.padded_patch_size)
 			full_machine_labels = Volume(scv(full_machine_labels), self.padded_patch_size)
+			samples = scv(samples)
 			valid = scv(valid)
 
 
@@ -73,63 +74,57 @@ class VectorLabelModel(Model):
 		self.image_feed =tf.placeholder(tf.float32, shape=self.padded_patch_size)
 		self.mask_feed = tf.placeholder(tf.float32, shape=self.padded_patch_size)
 		self.default_train_dict={self.iteration_type:0}
+		vector_labels_test = forward(tf.concat([self.image_feed, self.mask_feed],4))
 
 		iteration_type = self.iteration_type
 		train_samples=samples
 		test_samples=samples
-		#focus=tf.reshape(random_row(tf.cond(tf.equal(self.iteration_type,0),lambda: tf.identity(train_samples),lambda: tf.identity(test_samples))),(3,))
-		focus = np.array([0,50,500,500,0])
 
-		rr = RandomRotationPadded()
-		image = rr(full_image[focus])
-		human_labels = rr(full_human_labels[focus])
+		loss = 0
+		for i,d in enumerate(devices):
+			with tf.device(d):
+				with tf.name_scope("gpu"+str(i)):
+					focus=tf.reshape(random_row(tf.cond(tf.equal(self.iteration_type,0),lambda: tf.identity(train_samples),lambda: tf.identity(test_samples))),(3,))
+					focus = tf.concat([[0],focus,[0]],0)
+
+					rr = RandomRotationPadded()
+					image = rr(full_image[focus])
+					human_labels = rr(full_human_labels[focus])
 
 
 
-		central_label_set = tf.scatter_nd(tf.reshape(extract_central(human_labels),[1,1]), [1], [maxlabel])
+					central_label = extract_central(human_labels)
+					is_valid = tf.to_float(valid[0,tf.reshape(central_label,[])])
+					central_label_set = tf.scatter_nd(tf.reshape(central_label,[1,1]), [1], [maxlabel])
 
-		
-		#0 means that this label is removed
-		#ensure that the central object is not masked, and also ensure that only valid objects are masked.
-		masked_label_set = tf.maximum(tf.maximum(tf.to_int32(rand_bool([maxlabel],0.25)), central_label_set), 1-valid[0,:])
-		mask = tf.to_float(tf.gather(masked_label_set, human_labels))
-		central = tf.to_float(tf.gather(central_label_set, human_labels))
+					
+					#0 means that this label is removed
+					#ensure that the central object is not masked, and also ensure that only valid objects are masked.
+					masked_label_set = tf.maximum(tf.maximum(tf.to_int32(rand_bool([maxlabel],0.25)), central_label_set), 1-valid[0,:])
 
-		"""
-		central_index=human_labels[0,patch_size[0]/2,patch_size[1]/2,patch_size[2]/2,0]
-		remap = tf.where(tf.logical_or(rand_bool([10000], 0.25),tf.equal(np.array(range(10000),dtype=np.int32),central_index)), np.array(range(10000)), np.zeros(10000))
-		human_labels = tf.gather(remap, human_labels)
-		human_labels = unique(human_labels)
-		mask = tf.to_float(tf.minimum(human_labels, 1))
-		"""
+					#ensure that zero is masked out
+					masked_label_set = tf.minimum(masked_label_set, np.array([0]+[1]*(maxlabel-1)))
+					mask = tf.to_float(tf.gather(masked_label_set, human_labels))
+					central = tf.to_float(tf.gather(central_label_set, human_labels))
 
-		vector_labels = forward(tf.concat([image,mask],4))
-		vector_labels_test = forward(tf.concat([self.image_feed, self.mask_feed],4))
+					vector_labels = forward(tf.concat([image,mask],4))
+					
+					central_vector = tf.reduce_sum(central * vector_labels, reduction_indices = [1,2,3], keep_dims=True)/ tf.reduce_sum(central, keep_dims=False) 
 
-		with tf.name_scope("loss"):
-			"""
-			sub_human_labels = human_labels[:,
-					int(0.45*patch_size[0]):int(0.55*patch_size[0]),
-					int(0.45*patch_size[1]):int(0.55*patch_size[1]),
-					int(0.45*patch_size[2]):int(0.55*patch_size[2]),:]
-			central_labels = unique_list(sub_human_labels,maxn)
-			central_labels_mask = tf.to_float(tf.gather(central_labels, human_labels))
-			"""
-
-			loss1=0
-			loss2=0
-			loss3=0
-			#loss1, prediction = label_loss_fun(vector_labels, human_labels, central_labels, central)
-			#loss2, long_range_affinities = long_range_loss_fun(vector_labels, human_labels, offsets, mask)
-			#loss = loss1 + loss2
-			guess = affinity(extract_central(vector_labels),vector_labels)
-			truth = label_diff(human_labels, extract_central(human_labels))
-			loss3 = tf.reduce_sum(bounded_cross_entropy(guess,truth))
-			loss=loss1 + loss2 + loss3
+					with tf.name_scope("loss"):
+						loss1=0
+						loss2=0
+						loss3=0
+						#loss1, prediction = label_loss_fun(vector_labels, human_labels, central_labels, central)
+						#loss2, long_range_affinities = long_range_loss_fun(vector_labels, human_labels, offsets, mask)
+						guess = affinity(central_vector,vector_labels)
+						truth = label_diff(human_labels, extract_central(human_labels))
+						loss3 = tf.reduce_sum(bounded_cross_entropy(guess,truth)) * is_valid
+						loss += loss1 + loss2 + loss3
 
 		def training_iteration():
-			optimizer = tf.train.AdamOptimizer(0.0003, epsilon=0.1)
-			train_op = optimizer.minimize(loss)
+			optimizer = tf.train.AdamOptimizer(0.001, epsilon=0.1)
+			train_op = optimizer.minimize(loss, colocate_gradients_with_ops=True)
 			with tf.control_dependencies([train_op]):
 				train_op = tf.group(self.step.assign_add(1), tf.Print(
 					0, [self.step, iteration_type, loss],
@@ -154,9 +149,10 @@ class VectorLabelModel(Model):
 		#		for key in long_range_affinities])
 		self.summaries.extend([image_summary("image", image),
 								image_summary("mask", tf.to_float(mask)),
-								image_summary("human_labels", tf.to_float(human_labels)),
+								#image_summary("human_labels", tf.to_float(human_labels)),
 							   image_summary("vector_labels", vector_labels),
-							   image_summary("expansion", affinity(vector_labels,vector_labels[:,patch_size[0]/2:patch_size[0]/2+1, patch_size[1]/2:patch_size[1]/2+1, patch_size[2]/2:patch_size[2]/2+1,:]))
+							   image_summary("guess", guess),
+							   image_summary("truth", truth),
 							   ])
 		#self.summaries.extend([tf.summary.image("prediction", tf.reshape(prediction,[1,maxn,maxn,1]))])
 		summary_op = tf.summary.merge(self.summaries)
@@ -205,30 +201,29 @@ TRAIN = Dataset2(volpath, {"image": "image.h5", "human_labels":"proofread.h5", "
 
 X,Y,Z=TRAIN.image.shape
 print(TRAIN.valid.shape)
-def subarray(x):
-	return x[:,0:X/3,0:Y,0:Z,:]
+patch_size=(33,318,318)
 args = {
 	"offsets": filter(valid_offset, itertools.product(
 		[-3, -1, 0, 1, 3],
-		[-27, -9, -3, -1, 0, 1, 3, 9, 27],
-		[-27, -9, -3, -1, 0, 1, 3, 9, 27])),
-	"devices": ["/gpu:0"],
-	"patch_size": (32, 318, 318),
+		[-27, -9, 0, 9, 27],
+		[-27, -9, 0, 9, 27])),
+	"devices": ["/gpu:0", "/gpu:1", "/gpu:2", "/gpu:3"],
+	"patch_size": patch_size,
 	"nvec_labels": 6,
 	"maxn": 40,
 
 	#dtype=float32, shape=(n,z,y,x,1)
-	"full_image": subarray(np.reshape(TRAIN.image,(1,X,Y,Z,1))),
+	"full_image": np.reshape(TRAIN.image,(1,X,Y,Z,1)),
 
 	#dtype=int32, shape=(n,z,y,x,1)
-	"full_human_labels": subarray(np.reshape(TRAIN.human_labels,(1,X,Y,Z,1))),
+	"full_human_labels": np.reshape(TRAIN.human_labels,(1,X,Y,Z,1)),
 
 	#dtype=int32, shape=(n,z,y,x,1)
-	"full_machine_labels": subarray(np.reshape(TRAIN.machine_labels,(1,X,Y,Z,1))),
+	"full_machine_labels": np.reshape(TRAIN.machine_labels,(1,X,Y,Z,1)),
 
 	"valid": np.reshape(TRAIN.valid.astype(np.int32), (1,-1)),
 
-	"samples": np.concatenate([np.random.randint(low=x/2, high=y-x/2, size=(100000,1),dtype=np.int32) for x,y in zip((32,158,158), TRAIN.image.shape)],axis=1),
+	"samples": np.concatenate([np.random.randint(low=x/2, high=y-x/2, size=(100000,1),dtype=np.int32) for x,y in zip(patch_size, TRAIN.image.shape)],axis=1),
 	"name": "test",
 }
 
@@ -238,8 +233,7 @@ args = {
 
 pp = pprint.PrettyPrinter(indent=4)
 pp.pprint(args)
-with tf.device(args["devices"][0]):
-	main_model = VectorLabelModel(**args)
+main_model = VectorLabelModel(**args)
 
 print("initialized")
 TRAIN=None
@@ -250,5 +244,5 @@ gc.collect()
 #	main_model.restore(pythonzenity.FileSelection())
 
 if __name__ == '__main__':
-	main_model.train(nsteps=1000000)
+	main_model.train(nsteps=1000000, checkpoint_interval=200)
 	print("done")

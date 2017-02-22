@@ -36,12 +36,11 @@ def long_range_loss_fun(vec_labels, human_labels, offsets, mask):
 		truth = label_diff(
 				*get_pair(human_labels,offset,patch_size))
 
-		mask1, mask2 = get_pair(mask, offset, patch_size)
+		curr_mask = tf.maximum(*get_pair(mask, offset, patch_size))
 
 		otpts[offset] = guess
 
-		cost += tf.reduce_sum(tf.maximum(mask1, mask2) *
-							  bounded_cross_entropy(guess, truth))
+		cost += tf.reduce_sum(curr_mask * bounded_cross_entropy(guess, truth))
 
 	return cost, otpts
 def affinity(x, y):

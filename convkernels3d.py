@@ -192,6 +192,7 @@ def connection(inpt_schema, otpt_schema, connection_schema):
 				return F(size=connection_schema.size, strides = connection_schema.strides, n_lower = inpt_schema.nfeatures, n_upper = otpt_schema.nfeatures)
 			elif otpt_schema.level == inpt_schema.level - 1:
 				return F(size=connection_schema.size, strides = connection_schema.strides, n_lower = otpt_schema.nfeatures, n_upper = inpt_schema.nfeatures).transpose()
+	raise Exception()
 
 def zero(schema):
 	if type(schema) in [FeatureSchema]:
