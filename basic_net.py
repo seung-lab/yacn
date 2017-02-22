@@ -1,4 +1,3 @@
-
 from convkernels import *
 from activations import *
 
@@ -36,7 +35,6 @@ def make_forward_net(patch_size, n_in, n_out):
 		tf.nn.elu]
 
 	activations = [
-		SymmetricTanh(),
 		tf.nn.elu,
 		tf.nn.elu,
 		tf.nn.elu,
@@ -47,13 +45,14 @@ def make_forward_net(patch_size, n_in, n_out):
 			feature_schemas = initial_schemas,
 			connection_schemas = connection_schemas,
 		activations=initial_activations)
-	it1 = MultiscaleConv3d(initial_schemas, second_schemas, connection_schemas, connection_schemas, activations)
-	it2 = MultiscaleConv3d(second_schemas, second_schemas, connection_schemas, connection_schemas, activations)
-	it3 = MultiscaleConv3d(second_schemas, second_schemas, connection_schemas, connection_schemas, activations)
-	it4 = MultiscaleConv3d(second_schemas, second_schemas, connection_schemas, connection_schemas, activations)
-	it5 = MultiscaleConv3d(second_schemas, second_schemas, connection_schemas, connection_schemas, activations)
+	it1 = MultiscaleConv3d(initial_schemas, second_schemas, connection_schemas, connection_schemas, [SymmetricTanh()] + activations)
+	it2 = MultiscaleConv3d(second_schemas, second_schemas, connection_schemas, connection_schemas, [SymmetricTanh()] + activations)
+	it3 = MultiscaleConv3d(second_schemas, second_schemas, connection_schemas, connection_schemas, [SymmetricTanh()] + activations)
+	it4 = MultiscaleConv3d(second_schemas, second_schemas, connection_schemas, connection_schemas, [SymmetricTanh()] + activations)
+	it5 = MultiscaleConv3d(second_schemas, second_schemas, connection_schemas, connection_schemas, [SymmetricTanh()] + activations)
+	it6 = MultiscaleConv3d(second_schemas, second_schemas, connection_schemas, connection_schemas, [SymmetricTanh()] + activations)
 
 	def forward(x):
 		padded_x = tf.concat(3,[x,tf.zeros(patch_size + (n_out,))])
-		return it5(it4(it3((it2(it1(initial(padded_x)))))))[0][:,:,:,n_in:n_in+n_out]
+		return it6(it5(it4(it5(it4(it3(it2(it1(initial(padded_x)))))))))[0][:,:,:,n_in:n_in+n_out]
 	return forward

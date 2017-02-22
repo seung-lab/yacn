@@ -53,14 +53,16 @@ class ConvKernel2d(ConvKernel):
 			x=tf.squeeze(x,0)
 			tmp=tf.nn.conv2d(x,self.up_coeff*self.weights, strides=self.strides, padding='VALID')
 			shape_dict2d[(tuple(tmp._shape_as_list()[0:3]), self.size, tuple(self.strides))]=tuple(x._shape_as_list()[0:3])
-			tmp=tf.expand_dims(x,0)
+			tmp=tf.expand_dims(tmp,0)
 		return tmp
 
 	def transpose_call(self,x):
 		with tf.name_scope('2d_transpose') as scope:
+			x=tf.squeeze(x,0)
 			if not hasattr(self,"in_shape"):
 				self.in_shape=shape_dict2d[(tuple(x._shape_as_list()[0:3]),self.size,tuple(self.strides))]+(self.n_lower,)
 			ret = tf.nn.conv2d_transpose(x, self.down_coeff*self.weights, output_shape=self.in_shape, strides=self.strides, padding='VALID')
+			ret = tf.expand_dims(ret,0)
 
 		return ret
 
@@ -82,7 +84,7 @@ class ConvKernelZ(ConvKernel):
 			tmp=tf.nn.conv2d(xt,self.up_coeff*self.weights, strides=self.strides, padding='VALID')
 			shape_dictz[(tuple(tmp._shape_as_list()[0:3]),self.size)]=tuple(xt._shape_as_list()[0:3])
 			ret = tf.transpose(tmp, perm=[1,0,2,3])
-			ret=tf.expand_dims(x,0)
+			ret=tf.expand_dims(ret,0)
 		return ret
 
 	def transpose_call(self,x):
@@ -93,7 +95,7 @@ class ConvKernelZ(ConvKernel):
 				self.in_shape=tuple(shape_dictz[(tuple(xt._shape_as_list()[0:3]), self.size)]+(self.n_lower,))
 			tmp=tf.nn.conv2d_transpose(xt,self.down_coeff*self.weights, strides=self.strides, padding='VALID', output_shape=self.in_shape)
 			ret = tf.transpose(tmp, perm=[1,0,2,3])
-			ret=tf.expand_dims(x,0)
+			ret=tf.expand_dims(ret,0)
 		return ret
 
 class ConvKernel3dFactorized_Old(ConvKernel):
@@ -143,7 +145,9 @@ class ConvKernel3d(ConvKernel):
 
 
 class ConvKernel3dFactorized(ConvKernel):
-	def __init__(self, size=(1,4,4), strides=(1,2,2), n_lower=1, n_mid=1, n_upper=1, stddev=0.5, dtype=dtype):
+	def __init__(self, size=(1,4,4), strides=(1,2,2), n_lower=1, n_mid=None, n_upper=1, stddev=0.5, dtype=dtype):
+		if n_mid is None:
+			n_mid = n_upper
 		self.kernelxy = ConvKernel3d(size=(1,size[1],size[2]), strides=(1,strides[1],strides[2]), n_lower=n_lower, n_upper=n_mid, stddev=stddev, dtype=dtype)
 		self.kernelz = ConvKernel3d(size=(size[0],1,1), strides=(strides[0],1,1), n_lower=n_mid, n_upper=n_upper, stddev=stddev, dtype=dtype)
 	
@@ -169,17 +173,20 @@ class TransferConnection():
 
 FeatureSchema = namedtuple('FeatureSchema', ['nfeatures','level'])
 Connection3dSchema = namedtuple('Connection3dSchema', ['size', 'strides'])
+Connection2dSchema = namedtuple('Connection3dSchema', ['size', 'strides'])
 Connection3dFactorizedSchema = namedtuple('Connection3dFactorizedSchema', ['size', 'strides'])
 ConnectionTransferSchema = namedtuple('ConnectionTransferSchema',[])
 
 def connection(inpt_schema, otpt_schema, connection_schema):
 	if otpt_schema.level == inpt_schema.level and connection_schema == ConnectionTransferSchema():
 		return TransferConnection(inpt_schema,otpt_schema,connection_schema)
-	if type(connection_schema) in [Connection3dSchema, Connection3dFactorizedSchema]:
+	if type(connection_schema) in [Connection2dSchema, Connection3dSchema, Connection3dFactorizedSchema]:
 		if type(connection_schema) is Connection3dSchema:
 			F=ConvKernel3d
 		elif type(connection_schema) is Connection3dFactorizedSchema:
 			F=ConvKernel3dFactorized
+		elif type(connection_schema) is Connection2dSchema:
+			F=ConvKernel2d
 		if type(inpt_schema) in [FeatureSchema] and type(otpt_schema) in [FeatureSchema]:
 			if otpt_schema.level == inpt_schema.level + 1:
 				return F(size=connection_schema.size, strides = connection_schema.strides, n_lower = inpt_schema.nfeatures, n_upper = otpt_schema.nfeatures)

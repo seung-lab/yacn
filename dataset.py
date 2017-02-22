@@ -119,7 +119,7 @@ class Dataset2():
 			self.image = self.image.astype(np.float32)
 			if self.image.max() > 10:
 				print "dividing by 256"
-				self.image_full = self.image_full/256
+				self.image = self.image/256
 
 		if hasattr(self, "human_labels"):
 			self.human_labels = self.human_labels.astype(np.int32)
