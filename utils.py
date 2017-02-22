@@ -186,10 +186,6 @@ class RandomRotationPadded():
 	def __call__(self,x):
 		return tf.reshape(tf.transpose(tf.reverse(x, self.rev), perm=self.perm), static_shape(x))
 
-def bounded_cross_entropy(guess,truth):
-	guess = 0.999998*guess + 0.000001
-	return  - truth * tf.log(guess) - (1-truth) * tf.log(1-guess)
-
 def lrelu(x):
 	return tf.nn.relu(x) - tf.log(-tf.minimum(x,0)+1)
 
@@ -203,22 +199,12 @@ def covariance(population, mean, weight):
 	population = population - tf.reshape(mean,[1,-1])
 	return matmul(tf.transpose(population), population)/weight
 
-def get_pair(A,offset, patch_size):
-	os1 = map(lambda x: max(0,x) ,offset)
-	os2 = map(lambda x: max(0,-x),offset)
-	
-	A1 = A[:,os1[0]:patch_size[0]-os2[0],
-		os1[1]:patch_size[1]-os2[1],
-		os1[2]:patch_size[2]-os2[2],
-		:]
-	A2 = A[:,os2[0]:patch_size[0]-os1[0],
-		os2[1]:patch_size[1]-os1[1],
-		os2[2]:patch_size[2]-os1[2],
-		:]
-	return (A1, A2)
+def extract_central(X):
+	patch_size=static_shape(X)[1:4]
+	return X[:,patch_size[0]/2:patch_size[0]/2+1,
+			patch_size[1]/2:patch_size[1]/2+1,
+			patch_size[2]/2:patch_size[2]/2+1,:]
 
-def label_diff(x,y):
-	return tf.to_float(tf.equal(x,y))
 
 def norm(A):
 	return tf.reduce_sum(tf.square(A),reduction_indices=[3],keep_dims=True)
