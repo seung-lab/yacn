@@ -19,8 +19,7 @@ from tensorflow.python.client import timeline
 
 from utils import *
 from loss_functions import *
-from dataset import (gen, Dataset2, alternating_iterator)
-from experiments import save_experiment, repo_root
+from dataset import Dataset2
 
 
 class VectorLabelModel(Model):
@@ -170,7 +169,7 @@ class VectorLabelModel(Model):
 		return os.path.splitext(os.path.basename(__file__))[0]
 
 	def test(self, image, mask):
-		return self.sess.run(self.vector_labels2, feed_dict={iteration_type: 0, self.image_feed: image, self.mask_feed: mask})
+		return self.sess.run(self.vector_labels2, feed_dict={iteration_type: 1, self.image_feed: image, self.mask_feed: mask})
 
 
 
