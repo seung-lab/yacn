@@ -57,7 +57,7 @@ class ConvKernel2d(ConvKernel):
 		return tmp
 
 	def transpose_call(self,x):
-		with tf.name_scope('2d_transpose') as scope:
+		with tf.name_scope('2d_t') as scope:
 			x=tf.squeeze(x,0)
 			if not hasattr(self,"in_shape"):
 				self.in_shape=shape_dict2d[(tuple(x._shape_as_list()[0:3]),self.size,tuple(self.strides))]+(self.n_lower,)
@@ -88,7 +88,7 @@ class ConvKernelZ(ConvKernel):
 		return ret
 
 	def transpose_call(self,x):
-		with tf.name_scope('z_transpose') as scope:
+		with tf.name_scope('z_t') as scope:
 			x=tf.squeeze(x,0)
 			xt=tf.transpose(x, perm=[1,0,2,3])
 			if not hasattr(self,"in_shape"):
@@ -129,13 +129,13 @@ class ConvKernel3d(ConvKernel):
 		return TransposeKernel(self)
 
 	def __call__(self,x):
-		with tf.name_scope('conv3d') as scope:
+		with tf.name_scope('3d') as scope:
 			tmp=tf.nn.conv3d(x, self.up_coeff*self.weights, strides=self.strides, padding='VALID')
 			shape_dict3d[(tuple(tmp._shape_as_list()[1:4]), self.size, tuple(self.strides))]=tuple(x._shape_as_list()[1:4])
 		return tmp
 
 	def transpose_call(self,x):
-		with tf.name_scope('conv3d_t') as scope:
+		with tf.name_scope('3d_t') as scope:
 			if not hasattr(self,"in_shape"):
 				self.in_shape=shape_dict3d[(tuple(x._shape_as_list()[1:4]),self.size,tuple(self.strides))]+(self.n_lower,)
 			full_in_shape = (x._shape_as_list()[0],)+self.in_shape
@@ -155,11 +155,11 @@ class ConvKernel3dFactorized(ConvKernel):
 		return TransposeKernel(self)
 
 	def __call__(self,x):
-		with tf.name_scope('conv3d_factorized') as scope:
+		with tf.name_scope('3d_f') as scope:
 			return self.kernelz(self.kernelxy(x))
 
 	def transpose_call(self,x):
-		with tf.name_scope('conv3d_factorized_t') as scope:
+		with tf.name_scope('3d_f_t') as scope:
 			return self.kernelxy.transpose()(self.kernelz.transpose()(x))
 
 class TransferConnection():
@@ -257,13 +257,3 @@ class MultiscaleConv3d():
 				ret[i] = sum(l,z)
 				ret[i] = self.activations[i](ret[i] + self.biases[i])
 		return ret
-
-"""
-tmp=tf.zeros([1,100,100,100,5])
-c=ConvKernel3dFactorized(size=(18,4,4), strides=(1,2,2), n_lower=5, n_mid=2, n_upper=7, stddev=0.5, dtype=dtype)
-sess=tf.Session()
-sess.run(tf.global_variables_initializer())
-print(sess.run(tmp).shape)
-print(sess.run(c(tmp)).shape)
-print(sess.run(c.transpose()(c(tmp))).shape)
-"""

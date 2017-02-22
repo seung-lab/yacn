@@ -24,6 +24,7 @@ class Model():
 			try:
 				with DelayedKeyboardInterrupt():
 					t = time.time()
+					step=self.sess.run(self.step)
 					if i==5:
 						_, quick_summary = self.sess.run(
 							[self.train_op, self.quick_summary_op], options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE), run_metadata=self.run_metadata, feed_dict=self.train_feed_dict())
@@ -37,11 +38,9 @@ class Model():
 
 					elapsed = time.time() - t
 					print("elapsed: ", elapsed)
-					self.summary_writer.add_summary(
-						quick_summary, self.sess.run(self.step))
+					self.summary_writer.add_summary(quick_summary, step)
 					if i % checkpoint_interval == 0:
 						print("checkpointing...")
-						step = self.sess.run(self.step)
 						self.saver.save(self.sess, self.logdir + "model" + str(step) + ".ckpt")
 						self.summary_writer.add_summary(self.sess.run(self.summary_op, feed_dict=self.train_feed_dict()), step)
 						self.summary_writer.flush()
@@ -212,9 +211,6 @@ def vec_cat(A,B):
 def matmul(*l):
 	return reduce(tf.matmul,l)
 
-def batch_matmul(*l):
-	return reduce(tf.matmul,l)
-
 def batch_transpose(A):
 	n=len(A.get_shape())
 	perm = range(n-2)+[n-1,n-2]
@@ -269,28 +265,14 @@ def image_summary(name, x):
 	return tf.summary.image(name,tf.transpose(collapse_image(x), perm=[3,1,2,0]), max_outputs=6)
 
 def image_slice_summary(name, x):
-	return tf.image_summary(name,x[16:17,:,:,:], max_images=6)
-
-def image_summary_pad(name,x):
-	return image_summary(name,tf_pad_shape(x))
+	patch_size=static_shape(x)[1:4]
+	return tf.image_summary(name,x[0,patch_size[0]/2:patch_size[0]/2+1,:,:,:], max_images=6)
 
 def colour_image_summary(name, x):
 	return tf.image_summary(name,collapse_image(x), max_images=6)
 
 def pad_shape(A):
 	return np.reshape(A, list(np.shape(A)) + [1])
-
-def tf_pad_shape(A):
-	return tf.reshape(A,list(static_shape(A))+[1])
-
-def constant_variable(shape, val=0.0):
-	initial = tf.constant(val, dtype=dtype, shape=shape)
-	var = tf.Variable(initial, dtype=dtype)
-	return var
-
-def normal_variable(shape, stddev=0.1):
-	initial = tf.truncated_normal(shape, dtype=dtype, stddev=stddev)
-	return tf.Variable(initial, dtype=dtype)
 
 def identity_matrix(n):
 	return tf.diag(tf.ones([n]))
@@ -301,3 +283,6 @@ def static_shape(x):
 def indicator(full, on_vals, maxn=10000):
 	tmp=tf.scatter_nd(on_vals, tf.ones_like(on_vals), [maxn])
 	return tf.gather_nd(on_vals,full)
+
+def compose(*fs):
+	return lambda x: reduce(lambda v, f: f(v), fs, x)

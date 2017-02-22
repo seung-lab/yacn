@@ -65,8 +65,6 @@ def make_forward_net(patch_size, n_in, n_out):
 	ds_ds_it1 = lambda l: l[0:2] + ds_ds_it1_pre(l[2:])
 	ds_ds_it2 = lambda l: l[0:2] + ds_ds_it2_pre(l[2:])
 
-	def compose(*fs):
-		return lambda x: reduce(lambda v, f: f(v), fs, x)
 	def forward(x):
 		with tf.name_scope("forward"):
 			padded_x = tf.concat([x,tf.zeros((1,) + patch_size + (n_out,))],4)
