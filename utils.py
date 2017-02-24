@@ -69,25 +69,44 @@ class Model():
 		print ('log initialized')
 
 class Volume():
-	def __init__(self, A, patch_size):
+	def __init__(self, A, patch_size,indexing='CENTRAL'):
 		self.A=A
 		self.patch_size=patch_size
+		self.indexing=indexing
 
 	def __getitem__(self, focus):
 		A=self.A
 		patch_size=self.patch_size
 		with tf.device("/cpu:0"):
-			corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
+			if self.indexing == 'CENTRAL'
+				corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
+			else:
+				corner = focus
 			return tf.stop_gradient(tf.slice(A,corner,patch_size))
 
-	def __setitem__(A, focus, vol):
+	def __setitem__(A, focus, val):
 		A=self.A
 		patch_size=self.patch_size
 		with tf.device("/cpu:0"):
-			corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
-			corner = tf.Print(corner,[corner])
+			if self.indexing == 'CENTRAL'
+				corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
+			else:
+				corner = focus
 			corner = tf.unstack(corner)
-			return tf.stop_gradient(A[tuple([slice(corner[i],corner[i]+patch_size[i]) for i in xrange(len(patch_size))])].assign(vol))
+			return tf.stop_gradient(A[tuple([slice(corner[i],corner[i]+patch_size[i]) for i in xrange(len(patch_size))])].assign(val))
+
+class MultiVolume():
+	def __init__(self, As, patch_size, indexing = 'CENTRAL'):
+		self.As=map(lambda A: Volume(A,patch_size,indexing=indexing),As)
+		self.patch_size = patch_size
+	
+	def __getitem__(self, vol_index, focus):
+		vol = tf.case([(tf.equal(vol_index,i), v) for i,v in enumerate(self.As)], default=self.As[0], exclusive=True)
+		return vol[focus]
+
+	def __getitem__(self, vol_index, focus, val):
+		vol = tf.case([(tf.equal(vol_index,i), v) for i,v in enumerate(self.As)], default=self.As[0], exclusive=True)
+		vol[focus] = val
 
 def random_row(A):
 	index=tf.random_uniform([],minval=0,maxval=static_shape(A)[0],dtype=tf.int32)
@@ -162,10 +181,18 @@ def bump_logit(x,y,z):
 def rand_bool(shape, prob=0.5):
 	return tf.less(tf.random_uniform(shape),prob)
 
+def subsets(l):
+	if len(l)==0:
+		return []
+	else:
+		tmp=subsets(l[1:])
+		return tmp + map(lambda x: [l[1]] + x, tmp)
+
 class RandomRotation():
 	def __init__(self):
 		self.perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2]), lambda: tf.constant([0,2,1]))
-		self.rev = rand_bool([3])
+		r = tf.random_uniform([], minval=0, maxval=8, dtype=tf.int32)
+		self.rev = tf.case([(tf.equal(r,i), s) for i,s in enumerate(subsets([1,2,3]))],[],exclusive=True)
 
 	def __call__(self,x):
 		return tf.reshape(tf.transpose(tf.reverse(x, self.rev), perm=self.perm), static_shape(x))
