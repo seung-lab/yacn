@@ -78,7 +78,13 @@ class Volume():
 		A=self.A
 		patch_size=self.patch_size
 		with tf.device("/cpu:0"):
-			if self.indexing == 'CENTRAL'
+			if type(focus)==tuple:
+				focus = list(focus)
+				for i,s in enumerate(static_shape(A)):
+					if focus[i] == 'RAND':
+						focus[i] = tf.random_uniform([],minval=0, maxval=s,dtype=tf.int32)
+
+			if self.indexing == 'CENTRAL':
 				corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
 			else:
 				corner = focus
@@ -88,25 +94,21 @@ class Volume():
 		A=self.A
 		patch_size=self.patch_size
 		with tf.device("/cpu:0"):
-			if self.indexing == 'CENTRAL'
+			if self.indexing == 'CENTRAL':
 				corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
 			else:
 				corner = focus
 			corner = tf.unstack(corner)
 			return tf.stop_gradient(A[tuple([slice(corner[i],corner[i]+patch_size[i]) for i in xrange(len(patch_size))])].assign(val))
-
+	
 class MultiVolume():
 	def __init__(self, As, patch_size, indexing = 'CENTRAL'):
 		self.As=map(lambda A: Volume(A,patch_size,indexing=indexing),As)
 		self.patch_size = patch_size
 	
-	def __getitem__(self, vol_index, focus):
-		vol = tf.case([(tf.equal(vol_index,i), v) for i,v in enumerate(self.As)], default=self.As[0], exclusive=True)
-		return vol[focus]
-
-	def __getitem__(self, vol_index, focus, val):
-		vol = tf.case([(tf.equal(vol_index,i), v) for i,v in enumerate(self.As)], default=self.As[0], exclusive=True)
-		vol[focus] = val
+	def __getitem__(self, index):
+		vol_index, focus = index
+		return tf.reshape(tf.case([(tf.equal(vol_index,i), lambda: v[focus]) for i,v in enumerate(self.As)], default=lambda: self.As[0][focus], exclusive=True), self.patch_size)
 
 def random_row(A):
 	index=tf.random_uniform([],minval=0,maxval=static_shape(A)[0],dtype=tf.int32)
@@ -183,24 +185,16 @@ def rand_bool(shape, prob=0.5):
 
 def subsets(l):
 	if len(l)==0:
-		return []
+		return [[]]
 	else:
 		tmp=subsets(l[1:])
-		return tmp + map(lambda x: [l[1]] + x, tmp)
-
-class RandomRotation():
-	def __init__(self):
-		self.perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2]), lambda: tf.constant([0,2,1]))
-		r = tf.random_uniform([], minval=0, maxval=8, dtype=tf.int32)
-		self.rev = tf.case([(tf.equal(r,i), s) for i,s in enumerate(subsets([1,2,3]))],[],exclusive=True)
-
-	def __call__(self,x):
-		return tf.reshape(tf.transpose(tf.reverse(x, self.rev), perm=self.perm), static_shape(x))
+		return tmp + map(lambda x: [l[0]] + x, tmp)
 
 class RandomRotationPadded():
 	def __init__(self):
 		self.perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2,3,4]), lambda: tf.constant([0,1,3,2,4]))
-		self.rev = np.array([1,2,3])
+		r = tf.random_uniform([], minval=0, maxval=8, dtype=tf.int32)
+		self.rev = tf.case([(tf.equal(r,i), lambda: tf.constant(s,dtype=tf.int32)) for i,s in enumerate(subsets([1,2,3]))],lambda: tf.constant([],dtype=tf.int32),exclusive=True)
 
 	def __call__(self,x):
 		return tf.reshape(tf.transpose(tf.reverse(x, self.rev), perm=self.perm), static_shape(x))
@@ -223,6 +217,8 @@ def extract_central(X):
 	return X[:,patch_size[0]/2:patch_size[0]/2+1,
 			patch_size[1]/2:patch_size[1]/2+1,
 			patch_size[2]/2:patch_size[2]/2+1,:]
+def equal_to_centre(X):
+	return tf.to_float(tf.equal(extract_central(X),X))
 
 def norm(A):
 	return tf.reduce_sum(tf.square(A),reduction_indices=[3],keep_dims=True)
@@ -313,3 +309,6 @@ def indicator(full, on_vals, maxn=10000):
 
 def compose(*fs):
 	return lambda x: reduce(lambda v, f: f(v), fs, x)
+
+def reduce_spatial(x):
+	return tf.reduce_sum(x, axis=[1,2,3], keep_dims=False)
