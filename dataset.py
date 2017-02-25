@@ -21,22 +21,41 @@ def h5write(filename, x):
 	dset = f.create_dataset("main", data=x)
 	f.close()
 
-class Dataset2():
+class Dataset():
 	def __init__(self, directory,d):
 		self.directory=directory
 		for (k,v) in d.items():
-			setattr(self, k, h5read(directory + v))
-		if hasattr(self, "image"):
-			self.image = self.image.astype(np.float32)
-			if self.image.max() > 10:
-				print "dividing by 256"
-				self.image = self.image/256
+			setattr(self, k, prep(k,h5read(os.path.join(directory, v))))
 
-		if hasattr(self, "human_labels"):
-			self.human_labels = self.human_labels.astype(np.int32)
+class MultiDataset():
+	def __init__(self, directories, d):
+		self.n = len(directories)
+		for (k,v) in d.items():
+			setattr(self,k,[prep(k,h5read(os.path.join(directory, v))) for directory in directories])
 
-		if hasattr(self, "machine_labels"):
-			self.machine_labels = self.machine_labels.astype(np.int32)
+def prep(typ,data):
+	if typ == "image":
+		tmp=autopad(data.astype(np.float32))
+		if tmp.max() > 10:
+			print "dividing by 256"
+			return tmp/256
+	elif typ in ["human_labels", "machine_labels"]:
+		return autopad(data.astype(np.int32))
+	elif typ in ["valid"]:
+		return data.astype(np.int32)
+	elif typ in ["samples"]:
+		return data.astype(np.int32)[:,::-1]-1
+
+def autopad(A):
+	if len(A.shape)==3:
+		return np.reshape(A,(1,)+A.shape+(1,))
+	elif len(A.shape)==4:
+		return np.reshape(A,(1,)+A.shape)
+	elif len(A.shape)==5:
+		return A
+	else:
+		raise Exception("Can't autopad")
+		
 
 def alternating_iterator(its, counts, label=False):
 	while True:
