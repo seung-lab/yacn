@@ -1,5 +1,7 @@
+from __future__ import print_function
 import tensorflow as tf
 from utils import *
+import math
 
 def bounded_cross_entropy(guess,truth):
 	guess = 0.999998*guess + 0.000001
@@ -8,6 +10,25 @@ def bounded_cross_entropy(guess,truth):
 def label_diff(x,y):
 	return tf.to_float(tf.equal(x,y))
 
+
+def length_scale(x):
+	if x == 0:
+		return -1
+	else:
+		return math.log(abs(x))
+
+
+def valid_pair(x, y, strict=False):
+	return x == 0 or y == 0 or (
+		(not strict or length_scale(x) >= length_scale(y)) and abs(
+			length_scale(x) - length_scale(y)) <= math.log(3.1))
+
+
+def valid_offset(x):
+	return x > (0,0,0) and \
+	valid_pair(4 * x[0], x[1], strict=True) and \
+	valid_pair(4 * x[0], x[2], strict=True) and \
+	valid_pair(x[1],x[2])
 
 def get_pair(A,offset, patch_size):
 	os1 = map(lambda x: max(0,x) ,offset)
@@ -144,3 +165,35 @@ def label_loss_fun(vec_labels, human_labels, central_labels, central_labels_mask
 
 	return tf.reduce_sum(weight_matrix * cost) + tf.reduce_sum(tf.reshape(central_labels_mask,[-1,1]) * bounded_cross_entropy(affinity(vec_labels, centred_vec_labels),1)), predictions
 
+def has_error(obj, human_labels):
+	obj = tf.reshape(obj, [-1])
+	human_labels = tf.reshape(human_labels, [-1])
+	ind = tf.to_int32(tf.argmax(obj, axis=0))
+	x1=tf.equal(obj, obj[ind])
+	x2=tf.equal(human_labels, human_labels[ind])
+	return tf.to_float(tf.logical_or(tf.less(tf.reduce_sum(obj),1),tf.reduce_all(tf.equal(x1,x2))))
+
+def range_expander(stride, size):
+	def f(t):
+		x,y=t.start,t.stop
+		return slice(x*stride, y*stride + size-stride)
+	return f
+def range_tuple_expander(strides, sizes):
+	fs = [range_expander(stride, size) for stride, size in zip(strides, sizes)]
+	def f(ts):
+		return tuple(f(t) for f,t in zip(fs, ts))
+	return f
+
+def localized_errors(obj, human_labels):
+	f0=range_tuple_expander(strides=(1,2,2),sizes=(1,4,4))
+	f1=range_tuple_expander(strides=(1,2,2),sizes=(2,4,4))
+	f2=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+	f3=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+	f4=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+
+	shape = [6,8,8]
+
+	inds = [[i,j,k] for i in xrange(0,shape[0]) for j in xrange(0,shape[1]) for k in xrange(0,shape[2])]
+	slices = [(slice(0,1),)+f0(f1(f2(f3((slice(i,i+1), slice(j,j+1),slice(k,k+1)))))) + (slice(0,1),) for i,j,k in inds]
+	array_form = tf.scatter_nd(indices=inds, updates=map(lambda x: has_error(obj[x],human_labels[x]), slices), shape=shape)
+	return tf.reshape(array_form,[1]+shape+[1])
