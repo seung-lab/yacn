@@ -19,7 +19,7 @@ from tensorflow.python.client import timeline
 
 from utils import *
 from loss_functions import *
-from dataset import Dataset2
+import dataset
 
 
 class VectorLabelModel(Model):
@@ -53,14 +53,12 @@ class VectorLabelModel(Model):
 			return static_constant_variable(x,initializer_feed_dict)
 
 		with tf.device("/cpu:0"):
-			_,maxlabel = np.shape(valid)
 			#all of these should be five dimensional!
-			full_image = Volume(scv(full_image), self.padded_patch_size)
-			full_human_labels = Volume(scv(full_human_labels), self.padded_patch_size)
-			full_machine_labels = Volume(scv(full_machine_labels), self.padded_patch_size)
-			samples = scv(samples)
-			valid = scv(valid)
-
+			full_image = MultiVolume(map(scv,full_image), self.padded_patch_size)
+			full_human_labels = MultiVolume(map(scv,full_human_labels), self.padded_patch_size)
+			full_machine_labels = MultiVolume(map(scv,full_machine_labels), self.padded_patch_size)
+			samples = MultiVolume(map(scv,samples), (1,3), indexing='CORNER')
+			valid = map(scv,valid)
 
 		with tf.name_scope('params'):
 			self.step = tf.Variable(0)
@@ -74,6 +72,8 @@ class VectorLabelModel(Model):
 		self.mask_feed = tf.placeholder(tf.float32, shape=self.padded_patch_size)
 		self.default_train_dict={self.iteration_type:0}
 		vector_labels_test = forward(tf.concat([self.image_feed, self.mask_feed],4))
+		self.vector_labels_test = vector_labels_test
+		self.expansion_test = affinity(extract_central(vector_labels_test), vector_labels_test)
 
 		iteration_type = self.iteration_type
 		train_samples=samples
@@ -82,27 +82,27 @@ class VectorLabelModel(Model):
 		loss = 0
 		for i,d in enumerate(devices):
 			with tf.device(d):
-				with tf.name_scope("gpu"+str(i)):
-					focus=tf.reshape(random_row(tf.cond(tf.equal(self.iteration_type,0),lambda: tf.identity(train_samples),lambda: tf.identity(test_samples))),(3,))
-					focus = tf.concat([[0],focus,[0]],0)
+				with tf.name_scope("device"+str(i)):
+					vol_id=0
+					maxlabel = tf.shape(valid[vol_id])[0]
+					focus=tf.concat([[0],tf.reshape(samples[vol_id,('RAND',0)],(3,)),[0]],0)
 
 					rr = RandomRotationPadded()
-					image = rr(full_image[focus])
-					human_labels = rr(full_human_labels[focus])
-
-
+					image = rr(full_image[vol_id,focus])
+					human_labels = rr(full_human_labels[vol_id,focus])
 
 					central_label = extract_central(human_labels)
-					is_valid = tf.to_float(valid[0,tf.reshape(central_label,[])])
+					is_valid = tf.to_float(valid[vol_id][tf.reshape(central_label,[])])
 					central_label_set = tf.scatter_nd(tf.reshape(central_label,[1,1]), [1], [maxlabel])
 
 					
 					#0 means that this label is removed
 					#ensure that the central object is not masked, and also ensure that only valid objects are masked.
-					masked_label_set = tf.maximum(tf.maximum(tf.to_int32(rand_bool([maxlabel],0.25)), central_label_set), 1-valid[0,:])
+					masked_label_set = tf.maximum(tf.maximum(tf.to_int32(rand_bool([maxlabel],0.25)), central_label_set), 1-valid[vol_id])
 
 					#ensure that zero is masked out
-					masked_label_set = tf.minimum(masked_label_set, np.array([0]+[1]*(maxlabel-1)))
+					#masked_label_set = tf.minimum(masked_label_set, tf.concat(tf.zeros((1,),dtype=tf.int32),tf.ones((maxlabel-1,),dtype=tf.int32)))
+					masked_label_set = tf.concat([tf.zeros([1],dtype=tf.int32),masked_label_set[1:]],0)
 					mask = tf.to_float(tf.gather(masked_label_set, human_labels))
 					central = tf.to_float(tf.gather(central_label_set, human_labels))
 
@@ -122,7 +122,7 @@ class VectorLabelModel(Model):
 						loss += loss1 + loss2 + loss3
 
 		def training_iteration():
-			optimizer = tf.train.AdamOptimizer(0.001, epsilon=0.1)
+			optimizer = tf.train.AdamOptimizer(0.002, epsilon=0.1)
 			train_op = optimizer.minimize(loss, colocate_gradients_with_ops=True)
 			with tf.control_dependencies([train_op]):
 				train_op = tf.group(self.step.assign_add(1), tf.Print(
@@ -169,60 +169,50 @@ class VectorLabelModel(Model):
 		return os.path.splitext(os.path.basename(__file__))[0]
 
 	def test(self, image, mask):
-		return self.sess.run(self.vector_labels2, feed_dict={iteration_type: 1, self.image_feed: image, self.mask_feed: mask})
-
-
+		image = dataset.prep("image",image)
+		mask = dataset.prep("image",mask)
+		return self.sess.run(self.expansion_test, feed_dict={self.iteration_type: 1, self.image_feed: image, self.mask_feed: mask})
 
 	def train_feed_dict(self):
 		return self.default_train_dict
 
-def length_scale(x):
-	if x == 0:
-		return -1
-	else:
-		return math.log(abs(x))
+if __name__ == '__main__':
+	TRAIN = dataset.MultiDataset(
+			[
+				os.path.expanduser("/usr/people/jzung/seungmount/Omni/TracerTasks/pinky/proofreading/chunk_16513-18560_28801-30848_4003-4258.omni.files/"),
+				#os.path.expanduser("/usr/people/jzung/seungmount/Omni/TracerTasks/pinky/proofreading/chunk_18049-20096_30337-32384_4003-4258.omni.files/ds/"),
+			],
+			{
+				"image": "image.h5",
+				"human_labels": "proofread.h5",
+				"machine_labels": "mean0.3.h5",
+				"valid": "valid.h5",
+			}
+	)
+else:
+	TRAIN = dataset.MultiDataset(
+			["/usr/people/jzung/seungmount/research/datasets/dummy/"], {"image": "image.h5", "human_labels": "human_labels.h5", "machine_labels": "machine_labels.h5", "valid": "valid.h5"})
 
-
-def valid_pair(x, y, strict=False):
-	return x == 0 or y == 0 or (
-		(not strict or length_scale(x) >= length_scale(y)) and abs(
-			length_scale(x) - length_scale(y)) <= math.log(3.1))
-
-
-def valid_offset(x):
-	return x > (0,0,0) and \
-	valid_pair(4 * x[0], x[1], strict=True) and \
-	valid_pair(4 * x[0], x[2], strict=True) and \
-	valid_pair(x[1],x[2])
-
-volpath = os.path.expanduser("/usr/people/jzung/seungmount/Omni/TracerTasks/pinky/proofreading/chunk_16513-18560_28801-30848_4003-4258.omni.files/")
-TRAIN = Dataset2(volpath, {"image": "image.h5", "human_labels":"proofread.h5", "machine_labels":"mean0.3.h5", "valid": "valid.h5"})
-
-X,Y,Z=TRAIN.image.shape
-print(TRAIN.valid.shape)
 patch_size=(33,318,318)
 args = {
 	"offsets": filter(valid_offset, itertools.product(
 		[-3, -1, 0, 1, 3],
 		[-27, -9, 0, 9, 27],
 		[-27, -9, 0, 9, 27])),
-	"devices": ["/gpu:0", "/gpu:1", "/gpu:2", "/gpu:3"],
+	"devices": get_device_list(),
 	"patch_size": patch_size,
 	"nvec_labels": 6,
 	"maxn": 40,
 
-	#dtype=float32, shape=(n,z,y,x,1)
-	"full_image": np.reshape(TRAIN.image,(1,X,Y,Z,1)),
+	"full_image": TRAIN.image,
 
-	#dtype=int32, shape=(n,z,y,x,1)
-	"full_human_labels": np.reshape(TRAIN.human_labels,(1,X,Y,Z,1)),
+	"full_human_labels": TRAIN.human_labels,
 
-	#dtype=int32, shape=(n,z,y,x,1)
-	"full_machine_labels": np.reshape(TRAIN.machine_labels,(1,X,Y,Z,1)),
+	"full_machine_labels": TRAIN.machine_labels,
 
-	"valid": np.reshape(TRAIN.valid.astype(np.int32), (1,-1)),
+	"valid": TRAIN.valid,
 
-	"samples": np.concatenate([np.random.randint(low=x/2, high=y-x/2, size=(100000,1),dtype=np.int32) for x,y in zip(patch_size, TRAIN.image.shape)],axis=1),
+	"samples": [np.concatenate([np.random.randint(low=x/2, high=y-x/2, size=(100000,1),dtype=np.int32) for x,y in zip(patch_size, [256,2000,2000])],axis=1)],
 	"name": "test",
 }
 
@@ -230,17 +220,14 @@ args = {
 #A sample is a list of supervoxel ids, a window position, and a volume id
 #We want to be able to train with multiple volumes.
 
-pp = pprint.PrettyPrinter(indent=4)
-pp.pprint(args)
+#pp = pprint.PrettyPrinter(indent=4)
+#pp.pprint(args)
 main_model = VectorLabelModel(**args)
 
 print("initialized")
 TRAIN=None
 args=None
 gc.collect()
-#import pythonzenity
-#if pythonzenity.Question(text="Restore from checkpoint?") == -8:
-#	main_model.restore(pythonzenity.FileSelection())
 
 if __name__ == '__main__':
 	main_model.train(nsteps=1000000, checkpoint_interval=200)

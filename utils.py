@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from experiments import save_experiment, repo_root
 from interrupt_handler import DelayedKeyboardInterrupt
-from tensorflow.python.client import timeline
+from tensorflow.python.client import timeline, device_lib
 import time
 
 dtype=tf.float32
@@ -83,6 +83,8 @@ class Volume():
 				for i,s in enumerate(static_shape(A)):
 					if focus[i] == 'RAND':
 						focus[i] = tf.random_uniform([],minval=0, maxval=s,dtype=tf.int32)
+					elif focus[i] == 'ALL':
+						focus[i] = slice(0,s)
 
 			if self.indexing == 'CENTRAL':
 				corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
@@ -312,3 +314,14 @@ def compose(*fs):
 
 def reduce_spatial(x):
 	return tf.reduce_sum(x, axis=[1,2,3], keep_dims=False)
+
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
+
+def get_device_list():
+	tmp = get_available_gpus()
+	if len(tmp) > 0:
+		return tmp
+	else:
+		return ["/cpu:0"]
