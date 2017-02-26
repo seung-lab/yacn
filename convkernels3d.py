@@ -7,6 +7,7 @@ shape_dictz={}
 import operator
 from collections import namedtuple
 import itertools
+from utils import *
 
 
 def make_variable(shape, val=0.0):
@@ -16,7 +17,7 @@ def make_variable(shape, val=0.0):
 
 def bias_variable(schema):
 	if type(schema) in [FeatureSchema]:
-		return make_variable([schema.nfeatures])
+		return make_variable([1,1,1,1,schema.nfeatures])
 	else:
 		raise Exception()
 
@@ -199,6 +200,18 @@ def zero(schema):
 		return 0
 	else:
 		raise Exception()
+
+class FullLinear():
+	def __init__(self, n_in, n_out,stddev=0.5,dtype=dtype):
+		self.n_in=n_in
+		self.n_out=n_out
+		initial = tf.truncated_normal([n_in,n_out], stddev=stddev, dtype=dtype)
+		self.weights=tf.Variable(initial, dtype=dtype)
+		self.bias=make_variable([n_out],val=0.0)
+	def __call__(self, x):
+		with tf.name_scope("linear"):
+			n=len(static_shape(x))
+			return tf.matmul(x, tf.tile(tf.reshape(self.weights,[1]*(n-2) + [self.n_in, self.n_out]), static_shape(x)[0:n-2] + [1,1])) + tf.reshape(self.bias, [1]*(n-1) + [self.n_out])
 
 class MultiscaleUpConv3d():
 	def __init__(self, feature_schemas, connection_schemas, activations):
