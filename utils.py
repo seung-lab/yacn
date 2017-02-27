@@ -83,13 +83,13 @@ class Volume():
 				for i,s in enumerate(static_shape(A)):
 					if focus[i] == 'RAND':
 						focus[i] = tf.random_uniform([],minval=0, maxval=s,dtype=tf.int32)
-					elif focus[i] == 'ALL':
-						focus[i] = slice(0,s)
 
 			if self.indexing == 'CENTRAL':
 				corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
-			else:
+			elif self.indexing =='CORNER':
 				corner = focus
+			else:
+				raise Exception("bad indexing scheme")
 			return tf.stop_gradient(tf.slice(A,corner,patch_size))
 
 	def __setitem__(A, focus, val):
@@ -111,6 +111,13 @@ class MultiVolume():
 	def __getitem__(self, index):
 		vol_index, focus = index
 		return tf.reshape(tf.case([(tf.equal(vol_index,i), lambda: v[focus]) for i,v in enumerate(self.As)], default=lambda: self.As[0][focus], exclusive=True), self.patch_size)
+
+class MultiTensor():
+	def __init__(self, As):
+		self.As = As
+	def __getitem__(self, index):
+		return tf.case([(tf.equal(index,i), lambda: tf.identity(v)) for i,v in enumerate(self.As)], default=lambda: tf.identity(self.As[0]), exclusive=True)
+			
 
 def random_row(A):
 	index=tf.random_uniform([],minval=0,maxval=static_shape(A)[0],dtype=tf.int32)

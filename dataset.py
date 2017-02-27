@@ -44,7 +44,7 @@ def prep(typ,data):
 	elif typ in ["valid"]:
 		return data.astype(np.int32)
 	elif typ in ["samples"]:
-		return data.astype(np.int32)[:,::-1]-1
+		return data.astype(np.int32)
 
 def autopad(A):
 	if len(A.shape)==3:

@@ -38,7 +38,7 @@ class VectorLabelModel(Model):
 		self.nvec_labels = nvec_labels
 
 		config = tf.ConfigProto(
-			gpu_options = tf.GPUOptions(allow_growth=True),
+			#gpu_options = tf.GPUOptions(allow_growth=True),
 			allow_soft_placement=True,
 			#log_device_placement=True,
 			#gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.9),
@@ -58,7 +58,7 @@ class VectorLabelModel(Model):
 			full_human_labels = MultiVolume(map(scv,full_human_labels), self.padded_patch_size)
 			full_machine_labels = MultiVolume(map(scv,full_machine_labels), self.padded_patch_size)
 			samples = MultiVolume(map(scv,samples), (1,3), indexing='CORNER')
-			valid = map(scv,valid)
+			valid = MultiTensor(map(scv,valid))
 
 		with tf.name_scope('params'):
 			self.step = tf.Variable(0)
@@ -82,44 +82,42 @@ class VectorLabelModel(Model):
 		loss = 0
 		for i,d in enumerate(devices):
 			with tf.device(d):
-				with tf.name_scope("device"+str(i)):
-					vol_id=0
-					maxlabel = tf.shape(valid[vol_id])[0]
-					focus=tf.concat([[0],tf.reshape(samples[vol_id,('RAND',0)],(3,)),[0]],0)
+				vol_id=tf.random_uniform([], minval=0, maxval=len(full_image.As), dtype=np.int32)
+				maxlabel = tf.shape(valid[vol_id])[0]
+				focus=tf.concat([[0],tf.reshape(samples[vol_id,('RAND',0)],(3,)),[0]],0)
 
-					rr = RandomRotationPadded()
-					image = rr(full_image[vol_id,focus])
-					human_labels = rr(full_human_labels[vol_id,focus])
+				rr = RandomRotationPadded()
+				image = rr(full_image[vol_id,focus])
+				human_labels = rr(full_human_labels[vol_id,focus])
 
-					central_label = extract_central(human_labels)
-					is_valid = tf.to_float(valid[vol_id][tf.reshape(central_label,[])])
-					central_label_set = tf.scatter_nd(tf.reshape(central_label,[1,1]), [1], [maxlabel])
+				central_label = extract_central(human_labels)
+				is_valid = tf.to_float(valid[vol_id][tf.reshape(central_label,[])])
+				central_label_set = tf.scatter_nd(tf.reshape(central_label,[1,1]), [1], [maxlabel])
 
-					
-					#0 means that this label is removed
-					#ensure that the central object is not masked, and also ensure that only valid objects are masked.
-					masked_label_set = tf.maximum(tf.maximum(tf.to_int32(rand_bool([maxlabel],0.25)), central_label_set), 1-valid[vol_id])
+				#0 means that this label is removed
+				#ensure that the central object is not masked, and also ensure that only valid objects are masked.
+				masked_label_set = tf.maximum(tf.maximum(tf.to_int32(rand_bool([maxlabel],0.25)), central_label_set), 1-valid[vol_id])
 
-					#ensure that zero is masked out
-					#masked_label_set = tf.minimum(masked_label_set, tf.concat(tf.zeros((1,),dtype=tf.int32),tf.ones((maxlabel-1,),dtype=tf.int32)))
-					masked_label_set = tf.concat([tf.zeros([1],dtype=tf.int32),masked_label_set[1:]],0)
-					mask = tf.to_float(tf.gather(masked_label_set, human_labels))
-					central = tf.to_float(tf.gather(central_label_set, human_labels))
+				#ensure that zero is masked out
+				#masked_label_set = tf.minimum(masked_label_set, tf.concat(tf.zeros((1,),dtype=tf.int32),tf.ones((maxlabel-1,),dtype=tf.int32)))
+				masked_label_set = tf.concat([tf.zeros([1],dtype=tf.int32),masked_label_set[1:]],0)
+				mask = tf.to_float(tf.gather(masked_label_set, human_labels))
+				central = tf.to_float(tf.gather(central_label_set, human_labels))
+			with tf.device(d):
+				vector_labels = forward(tf.concat([image,mask],4))
+				
+				central_vector = tf.reduce_sum(central * vector_labels, reduction_indices = [1,2,3], keep_dims=True)/ tf.reduce_sum(central, keep_dims=False) 
 
-					vector_labels = forward(tf.concat([image,mask],4))
-					
-					central_vector = tf.reduce_sum(central * vector_labels, reduction_indices = [1,2,3], keep_dims=True)/ tf.reduce_sum(central, keep_dims=False) 
-
-					with tf.name_scope("loss"):
-						loss1=0
-						loss2=0
-						loss3=0
-						#loss1, prediction = label_loss_fun(vector_labels, human_labels, central_labels, central)
-						#loss2, long_range_affinities = long_range_loss_fun(vector_labels, human_labels, offsets, mask)
-						guess = affinity(central_vector,vector_labels)
-						truth = label_diff(human_labels, extract_central(human_labels))
-						loss3 = tf.reduce_sum(bounded_cross_entropy(guess,truth)) * is_valid
-						loss += loss1 + loss2 + loss3
+				with tf.name_scope("loss"):
+					loss1=0
+					loss2=0
+					loss3=0
+					#loss1, prediction = label_loss_fun(vector_labels, human_labels, central_labels, central)
+					#loss2, long_range_affinities = long_range_loss_fun(vector_labels, human_labels, offsets, mask)
+					guess = affinity(central_vector,vector_labels)
+					truth = label_diff(human_labels, extract_central(human_labels))
+					loss3 = tf.reduce_sum(bounded_cross_entropy(guess,truth)) * is_valid
+					loss += loss1 + loss2 + loss3
 
 		def training_iteration():
 			optimizer = tf.train.AdamOptimizer(0.002, epsilon=0.1)
@@ -179,19 +177,22 @@ class VectorLabelModel(Model):
 if __name__ == '__main__':
 	TRAIN = dataset.MultiDataset(
 			[
-				os.path.expanduser("/usr/people/jzung/seungmount/Omni/TracerTasks/pinky/proofreading/chunk_16513-18560_28801-30848_4003-4258.omni.files/"),
-				#os.path.expanduser("/usr/people/jzung/seungmount/Omni/TracerTasks/pinky/proofreading/chunk_18049-20096_30337-32384_4003-4258.omni.files/ds/"),
+				os.path.expanduser("~/mydatasets/1_1_1/"),
+				os.path.expanduser("~/mydatasets/1_2_1/"),
+				os.path.expanduser("~/mydatasets/2_1_1/"),
+				os.path.expanduser("~/mydatasets/2_2_1/"),
 			],
 			{
 				"image": "image.h5",
 				"human_labels": "proofread.h5",
-				"machine_labels": "mean0.3.h5",
+				"machine_labels": "mean_agg_tr.h5",
+				"samples": "samples.h5",
 				"valid": "valid.h5",
 			}
 	)
 else:
 	TRAIN = dataset.MultiDataset(
-			["/usr/people/jzung/seungmount/research/datasets/dummy/"], {"image": "image.h5", "human_labels": "human_labels.h5", "machine_labels": "machine_labels.h5", "valid": "valid.h5"})
+			[os.path.expanduser("~/mydatasets/datasets/dummy/")], {"image": "image.h5", "human_labels": "proofread.h5", "machine_labels": "mean_agg_tr.h5", "valid": "valid.h5", "samples": "samples.h5"})
 
 patch_size=(33,318,318)
 args = {
@@ -203,16 +204,11 @@ args = {
 	"patch_size": patch_size,
 	"nvec_labels": 6,
 	"maxn": 40,
-
 	"full_image": TRAIN.image,
-
 	"full_human_labels": TRAIN.human_labels,
-
 	"full_machine_labels": TRAIN.machine_labels,
-
 	"valid": TRAIN.valid,
-
-	"samples": [np.concatenate([np.random.randint(low=x/2, high=y-x/2, size=(100000,1),dtype=np.int32) for x,y in zip(patch_size, [256,2000,2000])],axis=1)],
+	"samples": TRAIN.samples,
 	"name": "test",
 }
 
