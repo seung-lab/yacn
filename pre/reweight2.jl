@@ -1,18 +1,19 @@
-FFTW.set_num_threads(6)
+FFTW.set_num_threads(32)
 
 function relabel(labels,relabels)
 	return map(i->relabels[i], labels)
 end
 
-function gen_weights(labels; M=30)
+function gen_weights(labels; M=30, kernel_size=[100,100,20])
 	labels+=1
 	N=maximum(labels)
 	tmp = randn(N,M)
 	relabels = tmp ./ sqrt(sum(tmp.^2,2))
+
+	#We always turn the boundary off
 	relabels[1,:]=0
 
 	kernel = fill(0f0, size(labels))
-	kernel_size=[100,100,20]
 	kernel[[1:x for x in kernel_size]...]=1
 	kernel = circshift(kernel,[round(Int,-x/2) for x in kernel_size]) / sum(kernel)
 
@@ -21,11 +22,27 @@ function gen_weights(labels; M=30)
 	fft_kernel=plan*(kernel)
 
 	weights=fill(0f0, size(labels))
-	for i in 1:M
-		println(i)
-		indicator = relabel(labels, relabels[:,i])
-		smoothed = iplan * ((plan*(indicator)).*fft_kernel)
-		weights[:,:,:] += real(smoothed.*indicator)
+	indicator = similar(fft_kernel)
+	intermediate = similar(fft_kernel)
+	smoothed = similar(fft_kernel)
+	for j in 1:M
+		println(j)
+		println("relabelling...")
+		@time for i in eachindex(indicator, labels)
+			indicator[i] = relabels[labels[i],j]
+		end
+		println("convolution...")
+		begin
+			@time A_mul_B!(intermediate, plan, indicator) 
+			@time for i in eachindex(intermediate,fft_kernel)
+				intermediate[i]=intermediate[i]*fft_kernel[i]
+			end
+			@time A_mul_B!(smoothed, iplan, intermediate)
+		end
+		println("update...")
+		@time for i in eachindex(weights, smoothed, indicator)
+			weights[i] += real(smoothed[i]*indicator[i])
+		end
 	end
 	for i in eachindex(weights,labels)
 		if labels[i]==1
@@ -37,8 +54,9 @@ function gen_weights(labels; M=30)
 	return weights
 end
 
-function gen_samples(labels; patch_size=Int[314,314,48], N=100000)
-	weights = gen_weights(labels)
+#We always output zyx, zero based indices
+function gen_samples(labels; patch_size=Int[318,318,48], kernel_size=map(x->round(Int,x/2),patch_size), N=100000, M=30, mask=1)
+	weights = gen_weights(labels, kernel_size = kernel_size, M=M) .* mask
 	weights *= (N/sum(weights))
 
 	A=Vector{Int}[]
@@ -49,17 +67,6 @@ function gen_samples(labels; patch_size=Int[314,314,48], N=100000)
 		end
 	end
 
-	println(length(A))
-	A=collect(filter(x-> reduce(*, true, [patch_size[i]/2 < x[i] < size(weights,i)-patch_size[i]/2 for i in 1:3]), A))
 	println("$(length(A)) examples collected")
-
-	A_flat=fill(0,(3,length(A)))
-	for i in 1:length(A)
-		A_flat[:,i]=A[i]
-	end
-	return A_flat
+	return flatten_samples(map(x->reverse(x)-1,A))
 end
-
-#DIR=expanduser("~/datasets/AC3/test")
-#weights = main(load("$(DIR)/oracle_labels.h5"))
-#save("$(DIR)/oracle_approximate_weights.h5", weights)
