@@ -124,7 +124,7 @@ class VectorLabelModel(Model):
 			train_op = optimizer.minimize(loss, colocate_gradients_with_ops=True)
 			with tf.control_dependencies([train_op]):
 				train_op = tf.group(self.step.assign_add(1), tf.Print(
-					0, [self.step, iteration_type, loss],
+					0, [self.step, vol_id, iteration_type, loss],
 					message="step|iteration_type|loss"))
 				quick_summary_op = tf.summary.merge([
 					tf.summary.scalar("loss_train", loss),
