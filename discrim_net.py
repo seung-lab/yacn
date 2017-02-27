@@ -2,6 +2,18 @@ from convkernels3d import *
 from activations import *
 from utils import *
 
+def patch_size_suggestions(top_shape):
+	f0=range_tuple_expander(strides=(1,2,2),sizes=(1,4,4))
+	f1=range_tuple_expander(strides=(1,2,2),sizes=(4,4,4))
+	f2=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+	f3=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+	f4=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+
+	base_patch_size = shape_to_slices(top_shape)
+	patch_size_suggestions = list(reversed(map(slices_to_shape,cum_compose(f4,f3,f2,f1,f0)(base_patch_size))))
+	print(patch_size_suggestions)
+	return patch_size_suggestions
+
 def make_forward_net(patch_size, n_in, n_out):
 
 	feature_schemas = [
@@ -58,8 +70,9 @@ def make_forward_net(patch_size, n_in, n_out):
 	ds_it1 = lambda l: l[0:1] + ds_it1_pre(l[1:])
 	ds_it2 = lambda l: l[0:1] + ds_it2_pre(l[1:])
 
-	lin1 = lambda x: tf.reshape(FullLinear(n_in=64, n_out=1)(x),[])
-	lin2 = lambda x: FullLinear(n_in=48, n_out=1)(x)
+	fl1 = FullLinear(n_in=64, n_out=1)
+	lin1 = lambda x: tf.reshape(fl1(x),[])
+	lin2 = FullLinear(n_in=48, n_out=1)
 
 	def discriminate(x):
 		with tf.name_scope("discriminate"):

@@ -57,6 +57,10 @@ class DiscrimModel(Model):
 			self.step=tf.Variable(0)
 			discrim, reconstruct = discrim_net.make_forward_net(patch_size,1,1)
 
+		#for some reason we need to initialize here first... Figure this out!
+		init = tf.global_variables_initializer()
+		self.sess.run(init, feed_dict=initializer_feed_dict)
+
 		loss=0
 		reconstruction_loss=0
 		for i,d in enumerate(devices):
@@ -69,7 +73,7 @@ class DiscrimModel(Model):
 					#1 is correct and 0 is incorrect
 					#truth_glimpse = rr(equal_to_centre(full_labels_truth[vol_id,focus_truth]))
 					lies_glimpse = rr(equal_to_centre(full_labels_lies[vol_id,focus_lies]))
-					lies_compare = rr(equal_to_centre(full_labels_truth[vol_id,focus_lies]))
+					#lies_compare = rr(equal_to_centre(full_labels_truth[vol_id,focus_lies]))
 					human_labels = rr(full_labels_truth[vol_id,focus_lies])
 
 					#truth_discrim, truth_discrim_mid = discrim(truth_glimpse)
@@ -78,15 +82,18 @@ class DiscrimModel(Model):
 					with tf.device("/cpu:0"):
 						errors = localized_errors(lies_glimpse, human_labels)
 
-					print(lies_discrim)
-					print(lies_discrim_mid)
-
 					loss += 0.1 * tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits = lies_discrim_mid, labels=errors))
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=lies_discrim, labels=has_error(lies_glimpse, human_labels))
 
-					reconstruction = reconstruct(lies_glimpse)
+					#reconstruction = reconstruct(lies_glimpse)
 
-					reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=lies_compare))
+					#reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=lies_compare))
+
+					f0=range_tuple_expander(strides=(1,2,2),sizes=(1,4,4))
+					f1=range_tuple_expander(strides=(1,2,2),sizes=(4,4,4))
+					f2=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+					f3=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+					expander = compose(f3,f2,f1,f0)
 
 		self.test_inpt = tf.placeholder(shape=self.padded_patch_size, dtype=tf.float32)
 		self.test_otpt = discrim(self.test_inpt)
@@ -104,6 +111,8 @@ class DiscrimModel(Model):
 						)
 						
 				quick_summary_op = tf.summary.merge([
+					image_summary("guess", upsample_mean(tf.nn.sigmoid(lies_discrim_mid), self.padded_patch_size, expander)),
+					image_summary("truth", upsample_mean(errors, self.padded_patch_size, expander)),
 					tf.summary.scalar("loss", loss),
 					tf.summary.scalar("reconstruction_loss", reconstruction_loss),
 					#tf.summary.scalar("truth_discrim", truth_discrim),
@@ -112,6 +121,7 @@ class DiscrimModel(Model):
 
 		self.summaries.append(tf.summary.scalar("loss",loss))
 		summary_op = tf.summary.merge(self.summaries)
+		print(self.sess.run(tf.report_uninitialized_variables()))
 
 		init = tf.global_variables_initializer()
 		self.sess.run(init, feed_dict=initializer_feed_dict)
@@ -136,19 +146,21 @@ class DiscrimModel(Model):
 
 TRAIN = MultiDataset(
 		[
-			os.path.expanduser("/usr/people/jzung/seungmount/Omni/TracerTasks/pinky/proofreading/chunk_16513-18560_28801-30848_4003-4258.omni.files/ds/"),
-			#os.path.expanduser("/usr/people/jzung/seungmount/Omni/TracerTasks/pinky/proofreading/chunk_18049-20096_30337-32384_4003-4258.omni.files/ds/"),
+			os.path.expanduser("/usr/people/jzung/mydatasets/1_1_1/ds/"),
+			#os.path.expanduser("/usr/people/jzung/mydatasets/1_2_1/ds/"),
+			#os.path.expanduser("/usr/people/jzung/mydatasets/2_1_1/ds/"),
+			#os.path.expanduser("/usr/people/jzung/mydatasets/2_2_1/ds/"),
 		],
 		{
-			"machine_labels": "mean_labels.h5",
-			"human_labels": "human_labels.h5",
-			"samples": "mean_samples.h5",
+			"machine_labels": "mean_agg_tr.h5",
+			"human_labels": "proofread.h5",
+			"samples": "samples.h5",
 		}
 )
 		
 args = {
-	"devices": ["/gpu:0"],
-	"patch_size": (33, 158, 158),
+	"devices": get_device_list(),
+	"patch_size": tuple(discrim_net.patch_size_suggestions([2,3,3])[0]),
 	"name": "test",
 	"truth_data": TRAIN.human_labels,
 	"lies_data": TRAIN.machine_labels,
@@ -157,8 +169,8 @@ args = {
 
 #pp = pprint.PrettyPrinter(indent=4)
 #pp.pprint(args)
-with tf.device(args["devices"][0]):
-	main_model = DiscrimModel(**args)
+#with tf.device(args["devices"][0]):
+main_model = DiscrimModel(**args)
 print("model initialized")
 if __name__ == '__main__':
 	main_model.train(nsteps=1000000)

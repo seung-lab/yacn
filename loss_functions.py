@@ -173,27 +173,47 @@ def has_error(obj, human_labels):
 	x2=tf.equal(human_labels, human_labels[ind])
 	return tf.to_float(tf.logical_or(tf.less(tf.reduce_sum(obj),1),tf.reduce_all(tf.equal(x1,x2))))
 
-def range_expander(stride, size):
-	def f(t):
-		x,y=t.start,t.stop
-		return slice(x*stride, y*stride + size-stride)
-	return f
-def range_tuple_expander(strides, sizes):
-	fs = [range_expander(stride, size) for stride, size in zip(strides, sizes)]
-	def f(ts):
-		return tuple(f(t) for f,t in zip(fs, ts))
-	return f
-
 def localized_errors(obj, human_labels):
 	f0=range_tuple_expander(strides=(1,2,2),sizes=(1,4,4))
-	f1=range_tuple_expander(strides=(1,2,2),sizes=(2,4,4))
+	f1=range_tuple_expander(strides=(1,2,2),sizes=(4,4,4))
 	f2=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
 	f3=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
-	f4=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+	rte = compose(f3,f2,f1,f0)
+	return downsample([obj,human_labels], [1,6,8,8,1], rte, has_error)
 
-	shape = [6,8,8]
+def downsample(us, ds_shape, expander, f):
+	multi=(type(us)==type([]))
+	shape = ds_shape
+	if multi:
+		full_shape = static_shape(us[0])
+	else:
+		full_shape = static_shape(us)
 
-	inds = [[i,j,k] for i in xrange(0,shape[0]) for j in xrange(0,shape[1]) for k in xrange(0,shape[2])]
-	slices = [(slice(0,1),)+f0(f1(f2(f3((slice(i,i+1), slice(j,j+1),slice(k,k+1)))))) + (slice(0,1),) for i,j,k in inds]
-	array_form = tf.scatter_nd(indices=inds, updates=map(lambda x: has_error(obj[x],human_labels[x]), slices), shape=shape)
-	return tf.reshape(array_form,[1]+shape+[1])
+	inds = [[i,j,k] for i in xrange(0,shape[1]) for j in xrange(0,shape[2]) for k in xrange(0,shape[3])]
+	slices = [(slice(0,shape[0]),)+expander((slice(i,i+1), slice(j,j+1),slice(k,k+1))) + (slice(0,shape[4]),) for i,j,k in inds]
+
+	if multi:
+		array_form = tf.scatter_nd(indices=inds, updates=map(lambda x: f(*[V[x] for V in us]), slices), shape=shape[1:4])
+	else:
+		array_form = tf.scatter_nd(indices=inds, updates=map(lambda x: f(us[x]), slices), shape=shape[1:4])
+	return tf.reshape(array_form,  shape )
+
+def upsample_sum(ds, us_shape, expander):
+	shape = static_shape(ds)
+	full_shape = us_shape
+	us = tf.Variable(tf.zeros(full_shape),name="aoeuhtns")
+	latest = us.assign(tf.zeros(full_shape))
+
+	inds = [[i,j,k] for i in xrange(0,shape[1]) for j in xrange(0,shape[2]) for k in xrange(0,shape[3])]
+	slices = [(slice(0,shape[0]),)+expander((slice(i,i+1), slice(j,j+1),slice(k,k+1))) + (slice(0,shape[4]),) for i,j,k in inds]
+
+	for (i,j,k),s in zip(inds, slices):
+		with tf.control_dependencies([latest]):
+			latest = us[s].assign(us[s]+ds[:,i,j,k,:]*tf.ones_like(us[s]))
+	
+	with tf.control_dependencies([latest]):
+		return tf.identity(us)
+
+def upsample_mean(ds, us_shape, expander):
+	return upsample_sum(ds, us_shape, expander) / upsample_sum(tf.ones_like(ds),us_shape, expander)
+

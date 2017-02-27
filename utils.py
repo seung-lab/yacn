@@ -173,7 +173,7 @@ def trimmed_sigmoid(logit):
 def static_constant_variable(x, fd):
 	placeholder = tf.placeholder(tf.as_dtype(x.dtype), shape=x.shape)
 	fd[placeholder]=x
-	return tf.Variable(placeholder)
+	return tf.Variable(placeholder,name="scv")
 
 def bump_map(patch_size):
 	tmp=np.zeros(patch_size)
@@ -310,14 +310,21 @@ def identity_matrix(n):
 	return tf.diag(tf.ones([n]))
 
 def static_shape(x):
-	return [x.value for x in x.get_shape()]
+	tmp=[x.value for x in x.get_shape()]
+	print(tmp)
+	return tmp
 
 def indicator(full, on_vals, maxn=10000):
 	tmp=tf.scatter_nd(on_vals, tf.ones_like(on_vals), [maxn])
 	return tf.gather_nd(on_vals,full)
 
+
+#applies fs, starting with the left
 def compose(*fs):
 	return lambda x: reduce(lambda v, f: f(v), fs, x)
+
+def cum_compose(*fs):
+	return lambda x: reduce(lambda vs, f: vs + [f(vs[-1])], fs, [x])
 
 def reduce_spatial(x):
 	return tf.reduce_sum(x, axis=[1,2,3], keep_dims=False)
@@ -332,3 +339,20 @@ def get_device_list():
 		return tmp
 	else:
 		return ["/cpu:0"]
+
+def range_expander(stride, size):
+	def f(t):
+		x,y=t.start,t.stop
+		return slice(x*stride, y*stride + size-stride)
+	return f
+def range_tuple_expander(strides, sizes):
+	fs = [range_expander(stride, size) for stride, size in zip(strides, sizes)]
+	def f(ts):
+		return tuple(f(t) for f,t in zip(fs, ts))
+	return f
+def shape_to_slices(s):
+	return map(lambda x: slice(0,x,None),s)
+
+#assumes step size 1
+def slices_to_shape(s):
+	return map(lambda x: x.stop-x.start,s)
