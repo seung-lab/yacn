@@ -144,7 +144,6 @@ class ConvKernel3d(ConvKernel):
 
 		return ret
 
-
 class ConvKernel3dFactorized(ConvKernel):
 	def __init__(self, size=(1,4,4), strides=(1,2,2), n_lower=1, n_mid=None, n_upper=1, stddev=0.5, dtype=dtype):
 		if n_mid is None:
@@ -177,6 +176,20 @@ Connection3dSchema = namedtuple('Connection3dSchema', ['size', 'strides'])
 Connection2dSchema = namedtuple('Connection3dSchema', ['size', 'strides'])
 Connection3dFactorizedSchema = namedtuple('Connection3dFactorizedSchema', ['size', 'strides'])
 ConnectionTransferSchema = namedtuple('ConnectionTransferSchema',[])
+
+def strides3d(x):
+	if type(x)==Connection2dSchema:
+		return (1,) + x.strides
+	elif type(x) in [Connection3dSchema, Connection3dFactorizedSchema]:
+		return x.strides
+	assert False
+
+def size3d(x):
+	if type(x)==Connection2dSchema:
+		return (1,) + x.size
+	elif type(x) in [Connection3dSchema, Connection3dFactorizedSchema]:
+		return x.size
+	assert False
 
 def connection(inpt_schema, otpt_schema, connection_schema):
 	if otpt_schema.level == inpt_schema.level and connection_schema == ConnectionTransferSchema():

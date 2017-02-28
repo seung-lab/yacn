@@ -2,15 +2,37 @@ from convkernels3d import *
 from activations import *
 from utils import *
 
-def patch_size_suggestions(top_shape):
-	f0=range_tuple_expander(strides=(1,2,2),sizes=(1,4,4))
-	f1=range_tuple_expander(strides=(1,2,2),sizes=(4,4,4))
-	f2=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
-	f3=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
-	f4=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
+initial_activations = [
+	lambda x: x,
+	tf.nn.elu,
+	tf.nn.elu,
+	tf.nn.elu,
+	tf.nn.elu,
+	tf.nn.elu,
+	]
 
+activations = [
+	tf.nn.elu,
+	tf.nn.elu,
+	tf.nn.elu,
+	tf.nn.elu,
+	tf.nn.elu,
+	tf.nn.elu
+	]
+
+connection_schemas = [
+			Connection2dSchema(size=(4,4),strides=(2,2)),
+			Connection3dFactorizedSchema(size=(4,4,4),strides=(1,2,2)),
+			Connection3dFactorizedSchema(size=(4,4,4),strides=(2,2,2)),
+			Connection3dFactorizedSchema(size=(4,4,4),strides=(2,2,2)),
+			Connection3dFactorizedSchema(size=(4,4,4),strides=(2,2,2))
+			]
+
+range_expanders = [range_tuple_expander(strides=strides3d(x), size=size3d(x)) for x in connection_schemas]
+
+def patch_size_suggestions(top_shape):
 	base_patch_size = shape_to_slices(top_shape)
-	patch_size_suggestions = list(reversed(map(slices_to_shape,cum_compose(f4,f3,f2,f1,f0)(base_patch_size))))
+	patch_size_suggestions = list(reversed(map(slices_to_shape,cum_compose(*reversed(range_expanders))(base_patch_size))))
 	print(patch_size_suggestions)
 	return patch_size_suggestions
 
@@ -24,33 +46,7 @@ def make_forward_net(patch_size, n_in, n_out):
 				FeatureSchema(48,5),
 				FeatureSchema(64,6),
 				]
-	connection_schemas = [
-				Connection2dSchema(size=(4,4),strides=(2,2)),
-				Connection3dFactorizedSchema(size=(4,4,4),strides=(1,2,2)),
-				Connection3dFactorizedSchema(size=(4,4,4),strides=(2,2,2)),
-				Connection3dFactorizedSchema(size=(4,4,4),strides=(2,2,2)),
-				Connection3dFactorizedSchema(size=(4,4,4),strides=(2,2,2))
-				]
 
-	initial_activations = [
-		lambda x: x,
-		tf.nn.elu,
-		tf.nn.elu,
-		tf.nn.elu,
-		tf.nn.elu,
-		tf.nn.elu,
-		tf.nn.elu
-		]
-
-	activations = [
-		tf.nn.sigmoid,
-		tf.nn.elu,
-		tf.nn.elu,
-		tf.nn.elu,
-		tf.nn.elu,
-		tf.nn.elu,
-		tf.nn.elu
-		]
 
 	initial = MultiscaleUpConv3d(
 			feature_schemas = feature_schemas,
@@ -70,9 +66,8 @@ def make_forward_net(patch_size, n_in, n_out):
 	ds_it1 = lambda l: l[0:1] + ds_it1_pre(l[1:])
 	ds_it2 = lambda l: l[0:1] + ds_it2_pre(l[1:])
 
-	fl1 = FullLinear(n_in=64, n_out=1)
-	lin1 = lambda x: tf.reshape(fl1(x),[])
-	lin2 = FullLinear(n_in=48, n_out=1)
+	linears = [FullLinear(n_in=x.nfeatures, n_out=1) for x in feature_schemas]
+	apply_linears = lambda tower: [f(x) for f,x in zip(linears, tower)]
 
 	def discriminate(x):
 		with tf.name_scope("discriminate"):
@@ -83,18 +78,16 @@ def make_forward_net(patch_size, n_in, n_out):
 					it2,
 					ds_it1,
 					ds_it2,
+					apply_linears
 					)(padded_x)
-			discrim = lin1(reduce_spatial(tower[-1]))
-			discrim_mid = lin2(tower[-2])
-		return discrim, discrim_mid
+		return tower
 
 
 	def reconstruct(x):
 		with tf.name_scope("forward"):
 			padded_x = tf.concat([x,tf.zeros((1,) + patch_size + (n_out,))],4)
-			i=initial(padded_x)
-			print(map(static_shape,i))
 			return compose(
+					initial,
 					it1,
 					it2,
 
@@ -106,5 +99,5 @@ def make_forward_net(patch_size, n_in, n_out):
 					it3,
 					it4,
 
-					)(i)[0][:,:,:,:,n_in:n_in+n_out]
+					)(padded_x)[0][:,:,:,:,n_in:n_in+n_out]
 	return discriminate, reconstruct

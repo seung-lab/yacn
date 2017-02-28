@@ -18,7 +18,7 @@ from tensorflow.python.client import timeline
 
 from utils import *
 from dataset import MultiDataset
-import pythonzenity
+#import pythonzenity
 
 class DiscrimModel(Model):
 	def __init__(self, patch_size, 
@@ -77,26 +77,32 @@ class DiscrimModel(Model):
 					human_labels = rr(full_labels_truth[vol_id,focus_lies])
 
 					#truth_discrim, truth_discrim_mid = discrim(truth_glimpse)
-					lies_discrim, lies_discrim_mid = discrim(lies_glimpse)
+					discrim_tower = discrim(lies_glimpse)
 
-					with tf.device("/cpu:0"):
-						errors = localized_errors(lies_glimpse, human_labels)
+					for i in range(3,5):
+						with tf.device("/cpu:0"):
+							ds_shape = static_shape(discrim_tower[i])
+							expander = compose(*reversed(discrim_net.range_expanders[0:i]))
 
-					loss += 0.1 * tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits = lies_discrim_mid, labels=errors))
-					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=lies_discrim, labels=has_error(lies_glimpse, human_labels))
+							print(ds_shape)
+							tmp=slices_to_shape(expander(shape_to_slices(ds_shape[1:4])))
+							assert tuple(tmp) == tuple(self.patch_size)
+							errors = localized_errors(lies_glimpse, human_labels, ds_shape = ds_shape, expander=expander)
+							loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = discrim_tower[i], labels=errors))
+							self.summaries.append(image_summary("guess"+str(i), upsample_mean(tf.nn.sigmoid(discrim_tower[i]), self.padded_patch_size, expander)))
+							self.summaries.append(image_summary("truth"+str(i), upsample_mean(errors, self.padded_patch_size, expander)))
+
+					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(discrim_tower[-1]), labels=has_error(lies_glimpse, human_labels))
 
 					#reconstruction = reconstruct(lies_glimpse)
 
 					#reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=lies_compare))
 
-					f0=range_tuple_expander(strides=(1,2,2),sizes=(1,4,4))
-					f1=range_tuple_expander(strides=(1,2,2),sizes=(4,4,4))
-					f2=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
-					f3=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
-					expander = compose(f3,f2,f1,f0)
 
 		self.test_inpt = tf.placeholder(shape=self.padded_patch_size, dtype=tf.float32)
+		self.test_human_labels = tf.placeholder(shape=self.padded_patch_size, dtype=tf.int32)
 		self.test_otpt = discrim(self.test_inpt)
+		#self.test_err = upsample_mean(localized_errors(self.test_inpt, tf.to_float(self.test_human_labels)), self.padded_patch_size, expander)
 
 		var_list = tf.get_collection(
 			tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
@@ -111,17 +117,14 @@ class DiscrimModel(Model):
 						)
 						
 				quick_summary_op = tf.summary.merge([
-					image_summary("guess", upsample_mean(tf.nn.sigmoid(lies_discrim_mid), self.padded_patch_size, expander)),
-					image_summary("truth", upsample_mean(errors, self.padded_patch_size, expander)),
 					tf.summary.scalar("loss", loss),
-					tf.summary.scalar("reconstruction_loss", reconstruction_loss),
+					#tf.summary.scalar("reconstruction_loss", reconstruction_loss),
 					#tf.summary.scalar("truth_discrim", truth_discrim),
-					tf.summary.scalar("lies_discrim", lies_discrim),
+					#tf.summary.scalar("lies_discrim", lies_discrim),
 				])
 
 		self.summaries.append(tf.summary.scalar("loss",loss))
 		summary_op = tf.summary.merge(self.summaries)
-		print(self.sess.run(tf.report_uninitialized_variables()))
 
 		init = tf.global_variables_initializer()
 		self.sess.run(init, feed_dict=initializer_feed_dict)
@@ -135,6 +138,9 @@ class DiscrimModel(Model):
 	def test(self,x):
 		x=[self.sess.run(self.test_otpt, feed_dict={self.test_inpt:x}) for i in xrange(4)]
 		return sum(x)/4
+
+	def test_local_errors(self,inpt,human_labels):
+		return self.sess.run(self.test_err, feed_dict={self.test_inpt:inpt, self.test_human_labels: human_labels})
 
 	def get_filename(self):
 		return os.path.splitext(os.path.basename(__file__))[0]

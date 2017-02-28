@@ -311,7 +311,6 @@ def identity_matrix(n):
 
 def static_shape(x):
 	tmp=[x.value for x in x.get_shape()]
-	print(tmp)
 	return tmp
 
 def indicator(full, on_vals, maxn=10000):
@@ -345,8 +344,8 @@ def range_expander(stride, size):
 		x,y=t.start,t.stop
 		return slice(x*stride, y*stride + size-stride)
 	return f
-def range_tuple_expander(strides, sizes):
-	fs = [range_expander(stride, size) for stride, size in zip(strides, sizes)]
+def range_tuple_expander(strides, size):
+	fs = [range_expander(stride, siz) for stride, siz in zip(strides, size)]
 	def f(ts):
 		return tuple(f(t) for f,t in zip(fs, ts))
 	return f
