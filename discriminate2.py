@@ -152,10 +152,10 @@ class DiscrimModel(Model):
 
 TRAIN = MultiDataset(
 		[
-			os.path.expanduser("/usr/people/jzung/mydatasets/1_1_1/ds/"),
-			#os.path.expanduser("/usr/people/jzung/mydatasets/1_2_1/ds/"),
-			#os.path.expanduser("/usr/people/jzung/mydatasets/2_1_1/ds/"),
-			#os.path.expanduser("/usr/people/jzung/mydatasets/2_2_1/ds/"),
+			os.path.expanduser("~/mydatasets/1_1_1/ds/"),
+			os.path.expanduser("~/mydatasets/1_2_1/ds/"),
+			os.path.expanduser("~/mydatasets/2_1_1/ds/"),
+			os.path.expanduser("~/mydatasets/2_2_1/ds/"),
 		],
 		{
 			"machine_labels": "mean_agg_tr.h5",

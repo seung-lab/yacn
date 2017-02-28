@@ -171,16 +171,12 @@ def has_error(obj, human_labels):
 	ind = tf.to_int32(tf.argmax(obj, axis=0))
 	x1=tf.equal(obj, obj[ind])
 	x2=tf.equal(human_labels, human_labels[ind])
-	return tf.to_float(tf.logical_or(tf.less(tf.reduce_sum(obj),1),tf.reduce_all(tf.equal(x1,x2))))
+	return tf.to_float(tf.logical_not(tf.logical_or(tf.less(tf.reduce_sum(obj),1),tf.reduce_all(tf.equal(x1,x2)))))
 
-def localized_errors(obj, human_labels):
-	f0=range_tuple_expander(strides=(1,2,2),sizes=(1,4,4))
-	f1=range_tuple_expander(strides=(1,2,2),sizes=(4,4,4))
-	f2=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
-	f3=range_tuple_expander(strides=(2,2,2),sizes=(4,4,4))
-	rte = compose(f3,f2,f1,f0)
-	return downsample([obj,human_labels], [1,6,8,8,1], rte, has_error)
+def localized_errors(obj, human_labels, ds_shape, expander):
+	return downsample([obj,human_labels], ds_shape, expander, has_error)
 
+#f is the function applied to the downsampling window
 def downsample(us, ds_shape, expander, f):
 	multi=(type(us)==type([]))
 	shape = ds_shape
