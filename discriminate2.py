@@ -56,11 +56,13 @@ class DiscrimModel(Model):
 		with tf.name_scope('params'):
 			self.step=tf.Variable(0)
 			discrim, reconstruct = discrim_net.make_forward_net(patch_size,1,1)
+			self.discrim = discrim
 
 		#for some reason we need to initialize here first... Figure this out!
 		init = tf.global_variables_initializer()
 		self.sess.run(init, feed_dict=initializer_feed_dict)
 
+		print("initialized1")
 		loss=0
 		reconstruction_loss=0
 		for i,d in enumerate(devices):
@@ -73,36 +75,52 @@ class DiscrimModel(Model):
 					#1 is correct and 0 is incorrect
 					#truth_glimpse = rr(equal_to_centre(full_labels_truth[vol_id,focus_truth]))
 					lies_glimpse = rr(equal_to_centre(full_labels_lies[vol_id,focus_lies]))
-					#lies_compare = rr(equal_to_centre(full_labels_truth[vol_id,focus_lies]))
-					human_labels = rr(full_labels_truth[vol_id,focus_lies])
+					tmp = full_labels_truth[vol_id,focus_lies]
+					truth_glimpse = rr(equal_to_centre(tmp))
+					human_labels = rr(tmp)
 
-					#truth_discrim, truth_discrim_mid = discrim(truth_glimpse)
-					discrim_tower = discrim(lies_glimpse)
+					truth_discrim_tower = discrim(truth_glimpse)
+					lies_discrim_tower = discrim(lies_glimpse)
 
 					for i in range(3,5):
 						with tf.device("/cpu:0"):
-							ds_shape = static_shape(discrim_tower[i])
+							ds_shape = static_shape(lies_discrim_tower[i])
 							expander = compose(*reversed(discrim_net.range_expanders[0:i]))
 
 							print(ds_shape)
 							tmp=slices_to_shape(expander(shape_to_slices(ds_shape[1:4])))
 							assert tuple(tmp) == tuple(self.patch_size)
 							errors = localized_errors(lies_glimpse, human_labels, ds_shape = ds_shape, expander=expander)
-							loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = discrim_tower[i], labels=errors))
-							self.summaries.append(image_summary("guess"+str(i), upsample_mean(tf.nn.sigmoid(discrim_tower[i]), self.padded_patch_size, expander)))
+							loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = lies_discrim_tower[i], labels=errors))
+							self.summaries.append(image_summary("guess"+str(i), upsample_mean(tf.nn.sigmoid(lies_discrim_tower[i]), self.padded_patch_size, expander)))
 							self.summaries.append(image_summary("truth"+str(i), upsample_mean(errors, self.padded_patch_size, expander)))
 
-					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(discrim_tower[-1]), labels=has_error(lies_glimpse, human_labels))
+							loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = truth_discrim_tower[i], labels=tf.zeros_like(truth_discrim_tower[i])))
 
-					#reconstruction = reconstruct(lies_glimpse)
+					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(lies_discrim_tower[-1]), labels=has_error(lies_glimpse, human_labels))
+					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(truth_discrim_tower[-1]), labels=tf.constant(0,dtype=tf.float32))
 
-					#reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=lies_compare))
+					reconstruction = reconstruct(lies_glimpse)
+
+					reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=truth_glimpse))
 
 
 		self.test_inpt = tf.placeholder(shape=self.padded_patch_size, dtype=tf.float32)
 		self.test_human_labels = tf.placeholder(shape=self.padded_patch_size, dtype=tf.int32)
 		self.test_otpt = discrim(self.test_inpt)
-		#self.test_err = upsample_mean(localized_errors(self.test_inpt, tf.to_float(self.test_human_labels)), self.padded_patch_size, expander)
+		
+		"""
+		for i in range(4,5):
+			with tf.device("/cpu:0"):
+				ds_shape = static_shape(lies_discrim_tower[i])
+				expander = compose(*reversed(discrim_net.range_expanders[0:i]))
+
+				print(ds_shape)
+				tmp=slices_to_shape(expander(shape_to_slices(ds_shape[1:4])))
+				assert tuple(tmp) == tuple(self.patch_size)
+				errors = localized_errors(self.test_inpt, self.test_human_labels, ds_shape = ds_shape, expander=expander)
+				self.test_err = upsample_mean(errors, self.padded_patch_size, expander)
+		"""
 
 		var_list = tf.get_collection(
 			tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
@@ -118,6 +136,8 @@ class DiscrimModel(Model):
 						
 				quick_summary_op = tf.summary.merge([
 					tf.summary.scalar("loss", loss),
+					image_summary("lies_glimpse", lies_glimpse),
+					image_summary("truth_glimpse", truth_glimpse),
 					#tf.summary.scalar("reconstruction_loss", reconstruction_loss),
 					#tf.summary.scalar("truth_discrim", truth_discrim),
 					#tf.summary.scalar("lies_discrim", lies_discrim),
@@ -133,6 +153,30 @@ class DiscrimModel(Model):
 		self.train_op = train_op
 		self.quick_summary_op = quick_summary_op
 		self.summary_op = summary_op
+	
+	#plan: assign to each object the magnitude of the max value of the error detector in the window.
+	#vol should be machine_labels of size [1,X,Y,Z,1]
+	def inference(self, vol, samples):
+		initializer_feed_dict={}
+		ret = Volume(static_constant_variable(np.zeros_like(vol,dtype=tf.float32),initializer_feed_dict), self.padded_patch_size)
+		labels = Volume(static_constant_variable(vol,initializer_feed_dict), self.padded_patch_size)
+		focus_inpt = tf.placeholder(shape=(3,),dtype=tf.int32)
+		focus=tf.concat([[0],focus_inpt,[0]],0)
+
+		inpt = equal_to_centre(labels[focus])
+		discrim_tower = self.discrim(inpt)
+		i=3
+		ds_shape = static_shape(discrim_tower[i])
+		expander = compose(*reversed(discrim_net.range_expanders[0:i]))
+		otpt = upsample_mean(tf.nn.sigmoid(discrim_tower[i]), self.padded_patch_size, expander)
+
+		#it = (ret[inpt]=tf.max(otpt,ret[focus])*)
+
+		self.sess.run(tf.global_variables_initializer())
+		for i in xrange(samples.shape[0]):
+			self.sess.run(it, feed_dict={inpt: samples[i,:]})
+
+		return self.sess.run(ret)
 
 
 	def test(self,x):

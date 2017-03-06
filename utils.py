@@ -98,8 +98,10 @@ class Volume():
 		with tf.device("/cpu:0"):
 			if self.indexing == 'CENTRAL':
 				corner = focus - np.array([x/2 for x in patch_size],dtype=np.int32)
-			else:
+			elif self.indexing =='CORNER':
 				corner = focus
+			else:
+				raise Exception("bad indexing scheme")
 			corner = tf.unstack(corner)
 			return tf.stop_gradient(A[tuple([slice(corner[i],corner[i]+patch_size[i]) for i in xrange(len(patch_size))])].assign(val))
 	

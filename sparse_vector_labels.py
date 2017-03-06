@@ -192,7 +192,7 @@ if __name__ == '__main__':
 	)
 else:
 	TRAIN = dataset.MultiDataset(
-			[os.path.expanduser("~/mydatasets/datasets/dummy/")], {"image": "image.h5", "human_labels": "proofread.h5", "machine_labels": "mean_agg_tr.h5", "valid": "valid.h5", "samples": "samples.h5"})
+			[os.path.expanduser("~/mydatasets/dummy/")], {"image": "image.h5", "human_labels": "proofread.h5", "machine_labels": "mean_agg_tr.h5", "valid": "valid.h5", "samples": "samples.h5"})
 
 patch_size=(33,318,318)
 args = {

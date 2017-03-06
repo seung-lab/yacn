@@ -197,7 +197,7 @@ def downsample(us, ds_shape, expander, f):
 def upsample_sum(ds, us_shape, expander):
 	shape = static_shape(ds)
 	full_shape = us_shape
-	us = tf.Variable(tf.zeros(full_shape),name="aoeuhtns")
+	us = tf.Variable(tf.zeros(full_shape))
 	latest = us.assign(tf.zeros(full_shape))
 
 	inds = [[i,j,k] for i in xrange(0,shape[1]) for j in xrange(0,shape[2]) for k in xrange(0,shape[3])]
