@@ -82,7 +82,7 @@ class DiscrimModel(Model):
 					
 					self.summaries.append(image_summary("lies_glimpse", lies_glimpse))
 					self.summaries.append(image_summary("truth_glimpse", truth_glimpse))
-					self.summaries.append(image_summary("human_labels", human_labels))
+					self.summaries.append(image_summary("human_labels", tf.to_float(human_labels)))
 
 					truth_discrim_tower = discrim(truth_glimpse)
 					lies_discrim_tower = discrim(lies_glimpse)
