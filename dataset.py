@@ -10,9 +10,11 @@ import random
 
 
 def h5read(filename):
+	print "reading from", filename, ". . ."
 	f = h5py.File(filename, "r")
 	tmp = f["main"][()]
 	f.close()
+	print "done"
 	return tmp
 
 
@@ -30,11 +32,12 @@ class Dataset():
 class MultiDataset():
 	def __init__(self, directories, d):
 		self.n = len(directories)
+		self.directories=directories
 		for (k,v) in d.items():
 			setattr(self,k,[prep(k,h5read(os.path.join(directory, v))) for directory in directories])
 
 def prep(typ,data):
-	if typ == "image":
+	if typ in ["image", "errors"]:
 		tmp=autopad(data.astype(np.float32))
 		if tmp.max() > 10:
 			print "dividing by 256"

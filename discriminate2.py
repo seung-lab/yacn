@@ -18,7 +18,6 @@ from tensorflow.python.client import timeline
 
 from utils import *
 from dataset import MultiDataset
-#import pythonzenity
 
 class DiscrimModel(Model):
 	def __init__(self, patch_size, 
@@ -48,7 +47,7 @@ class DiscrimModel(Model):
 			return static_constant_variable(x,initializer_feed_dict)
 
 		with tf.device("/cpu:0"):
-			vol_id=0
+			n_volumes = len(truth_data)
 			full_labels_truth = MultiVolume(map(scv,truth_data), self.padded_patch_size)
 			full_labels_lies = MultiVolume(map(scv,lies_data), self.padded_patch_size)
 			samples = MultiVolume(map(scv,samples), (1,3), indexing='CORNER')
@@ -68,7 +67,9 @@ class DiscrimModel(Model):
 		for i,d in enumerate(devices):
 			with tf.device(d):
 				with tf.name_scope("gpu"+str(i)):
+					vol_id=tf.random_uniform([], minval=0, maxval=n_volumes, dtype=np.int32)
 					focus_lies=tf.concat([[0],tf.reshape(samples[vol_id,('RAND',0)],(3,)),[0]],0)
+					focus_lies = tf.Print(focus_lies, [vol_id, focus_lies], summarize=10)
 			
 					rr=RandomRotationPadded()
 
@@ -78,6 +79,10 @@ class DiscrimModel(Model):
 					tmp = full_labels_truth[vol_id,focus_lies]
 					truth_glimpse = rr(equal_to_centre(tmp))
 					human_labels = rr(tmp)
+					
+					self.summaries.append(image_summary("lies_glimpse", lies_glimpse))
+					self.summaries.append(image_summary("truth_glimpse", truth_glimpse))
+					self.summaries.append(image_summary("human_labels", human_labels))
 
 					truth_discrim_tower = discrim(truth_glimpse)
 					lies_discrim_tower = discrim(lies_glimpse)
@@ -92,35 +97,17 @@ class DiscrimModel(Model):
 							assert tuple(tmp) == tuple(self.patch_size)
 							errors = localized_errors(lies_glimpse, human_labels, ds_shape = ds_shape, expander=expander)
 							loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = lies_discrim_tower[i], labels=errors))
+							loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = truth_discrim_tower[i], labels=tf.zeros_like(truth_discrim_tower[i])))
 							self.summaries.append(image_summary("guess"+str(i), upsample_mean(tf.nn.sigmoid(lies_discrim_tower[i]), self.padded_patch_size, expander)))
 							self.summaries.append(image_summary("truth"+str(i), upsample_mean(errors, self.padded_patch_size, expander)))
-
-							loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = truth_discrim_tower[i], labels=tf.zeros_like(truth_discrim_tower[i])))
 
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(lies_discrim_tower[-1]), labels=has_error(lies_glimpse, human_labels))
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(truth_discrim_tower[-1]), labels=tf.constant(0,dtype=tf.float32))
 
 					reconstruction = reconstruct(lies_glimpse)
+					self.summaries.append(image_summary("reconstruction", reconstruction))
 
 					reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=truth_glimpse))
-
-
-		self.test_inpt = tf.placeholder(shape=self.padded_patch_size, dtype=tf.float32)
-		self.test_human_labels = tf.placeholder(shape=self.padded_patch_size, dtype=tf.int32)
-		self.test_otpt = discrim(self.test_inpt)
-		
-		"""
-		for i in range(4,5):
-			with tf.device("/cpu:0"):
-				ds_shape = static_shape(lies_discrim_tower[i])
-				expander = compose(*reversed(discrim_net.range_expanders[0:i]))
-
-				print(ds_shape)
-				tmp=slices_to_shape(expander(shape_to_slices(ds_shape[1:4])))
-				assert tuple(tmp) == tuple(self.patch_size)
-				errors = localized_errors(self.test_inpt, self.test_human_labels, ds_shape = ds_shape, expander=expander)
-				self.test_err = upsample_mean(errors, self.padded_patch_size, expander)
-		"""
 
 		var_list = tf.get_collection(
 			tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
@@ -136,11 +123,7 @@ class DiscrimModel(Model):
 						
 				quick_summary_op = tf.summary.merge([
 					tf.summary.scalar("loss", loss),
-					image_summary("lies_glimpse", lies_glimpse),
-					image_summary("truth_glimpse", truth_glimpse),
-					#tf.summary.scalar("reconstruction_loss", reconstruction_loss),
-					#tf.summary.scalar("truth_discrim", truth_discrim),
-					#tf.summary.scalar("lies_discrim", lies_discrim),
+					tf.summary.scalar("reconstruction_loss", reconstruction_loss),
 				])
 
 		self.summaries.append(tf.summary.scalar("loss",loss))
@@ -154,38 +137,6 @@ class DiscrimModel(Model):
 		self.quick_summary_op = quick_summary_op
 		self.summary_op = summary_op
 	
-	#plan: assign to each object the magnitude of the max value of the error detector in the window.
-	#vol should be machine_labels of size [1,X,Y,Z,1]
-	def inference(self, vol, samples):
-		initializer_feed_dict={}
-		ret = Volume(static_constant_variable(np.zeros_like(vol,dtype=tf.float32),initializer_feed_dict), self.padded_patch_size)
-		labels = Volume(static_constant_variable(vol,initializer_feed_dict), self.padded_patch_size)
-		focus_inpt = tf.placeholder(shape=(3,),dtype=tf.int32)
-		focus=tf.concat([[0],focus_inpt,[0]],0)
-
-		inpt = equal_to_centre(labels[focus])
-		discrim_tower = self.discrim(inpt)
-		i=3
-		ds_shape = static_shape(discrim_tower[i])
-		expander = compose(*reversed(discrim_net.range_expanders[0:i]))
-		otpt = upsample_mean(tf.nn.sigmoid(discrim_tower[i]), self.padded_patch_size, expander)
-
-		#it = (ret[inpt]=tf.max(otpt,ret[focus])*)
-
-		self.sess.run(tf.global_variables_initializer())
-		for i in xrange(samples.shape[0]):
-			self.sess.run(it, feed_dict={inpt: samples[i,:]})
-
-		return self.sess.run(ret)
-
-
-	def test(self,x):
-		x=[self.sess.run(self.test_otpt, feed_dict={self.test_inpt:x}) for i in xrange(4)]
-		return sum(x)/4
-
-	def test_local_errors(self,inpt,human_labels):
-		return self.sess.run(self.test_err, feed_dict={self.test_inpt:inpt, self.test_human_labels: human_labels})
-
 	def get_filename(self):
 		return os.path.splitext(os.path.basename(__file__))[0]
 
@@ -221,6 +172,7 @@ args = {
 #pp.pprint(args)
 #with tf.device(args["devices"][0]):
 main_model = DiscrimModel(**args)
+main_model.restore(zenity_workaround())
 print("model initialized")
 if __name__ == '__main__':
-	main_model.train(nsteps=1000000)
+	main_model.train(nsteps=1000000, checkpoint_interval=200)

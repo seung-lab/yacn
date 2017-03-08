@@ -92,7 +92,7 @@ class Volume():
 				raise Exception("bad indexing scheme")
 			return tf.stop_gradient(tf.slice(A,corner,patch_size))
 
-	def __setitem__(A, focus, val):
+	def __setitem__(self, focus, val):
 		A=self.A
 		patch_size=self.patch_size
 		with tf.device("/cpu:0"):
@@ -331,8 +331,8 @@ def reduce_spatial(x):
 	return tf.reduce_sum(x, axis=[1,2,3], keep_dims=False)
 
 def get_available_gpus():
-    local_device_protos = device_lib.list_local_devices()
-    return [x.name for x in local_device_protos if x.device_type == 'GPU']
+	local_device_protos = device_lib.list_local_devices()
+	return [x.name for x in local_device_protos if x.device_type == 'GPU']
 
 def get_device_list():
 	tmp = get_available_gpus()
@@ -357,3 +357,15 @@ def shape_to_slices(s):
 #assumes step size 1
 def slices_to_shape(s):
 	return map(lambda x: x.stop-x.start,s)
+
+def occlude_correct(errors, human_labels):
+	max_errors = tf.unsorted_segment_max(errors,human_labels)
+	return tf.gather_nd(max_errors, human_labels)
+
+from subprocess import Popen, PIPE
+def zenity_workaround():
+	process = Popen(["zenity","--file-selection"], stdout=PIPE)
+	(output,err) = process.communicate()
+	exit_code=process.wait()
+	return output.strip()
+
