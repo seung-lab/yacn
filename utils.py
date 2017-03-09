@@ -6,6 +6,7 @@ from experiments import save_experiment, repo_root
 from interrupt_handler import DelayedKeyboardInterrupt
 from tensorflow.python.client import timeline, device_lib
 import time
+from subprocess import call
 
 dtype=tf.float32
 shape_dict3d={}
@@ -44,6 +45,7 @@ class Model():
 						self.saver.save(self.sess, self.logdir + "model" + str(step) + ".ckpt")
 						self.summary_writer.add_summary(self.sess.run(self.summary_op, feed_dict=self.train_feed_dict()), step)
 						self.summary_writer.flush()
+						call(["touch",self.logdir+"model"+str(step) + ".ckpt"])
 						print("done")
 			except KeyboardInterrupt:
 				break

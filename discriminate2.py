@@ -96,6 +96,7 @@ class DiscrimModel(Model):
 							tmp=slices_to_shape(expander(shape_to_slices(ds_shape[1:4])))
 							assert tuple(tmp) == tuple(self.patch_size)
 							errors = localized_errors(lies_glimpse, human_labels, ds_shape = ds_shape, expander=expander)
+							errors = tf.Print(errors, tf.reduce_sum(errors))
 							loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = lies_discrim_tower[i], labels=errors))
 							loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = truth_discrim_tower[i], labels=tf.zeros_like(truth_discrim_tower[i])))
 							self.summaries.append(image_summary("guess"+str(i), upsample_mean(tf.nn.sigmoid(lies_discrim_tower[i]), self.padded_patch_size, expander)))
