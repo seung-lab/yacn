@@ -88,7 +88,7 @@ class DiscrimModel(Model):
 					reconstruction = reconstruct(occluded)
 					reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=truth_glimpse))
 					
-					self.summaries.append(image_summary("reconstruction", reconstruction))
+					self.summaries.append(image_summary("reconstruction", tf.nn.sigmoid(reconstruction)))
 					self.summaries.append(image_summary("occluded", occluded))
 
 					truth_discrim_tower = discrim(truth_glimpse)
@@ -117,7 +117,7 @@ class DiscrimModel(Model):
 		var_list = tf.get_collection(
 			tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
 
-		optimizer = tf.train.AdamOptimizer(0.0001, beta1=0.9, epsilon=0.1)
+		optimizer = tf.train.AdamOptimizer(0.001, beta1=0.9, epsilon=0.1)
 		train_op = optimizer.minimize(1e5*loss + reconstruction_loss, colocate_gradients_with_ops=True, var_list = var_list)
 
 		with tf.control_dependencies([train_op]):
