@@ -105,7 +105,7 @@ class DiscrimModel(Model):
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(lies_discrim_tower[-1]), labels=has_error(lies_glimpse, human_labels))
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(truth_discrim_tower[-1]), labels=tf.constant(0,dtype=tf.float32))
 
-					reconstruction = reconstruct(lies_glimpse)
+					reconstruction = reconstruct(random_occlusion(lies_glimpse))
 					self.summaries.append(image_summary("reconstruction", reconstruction))
 
 					reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=truth_glimpse))
