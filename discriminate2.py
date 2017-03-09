@@ -83,6 +83,13 @@ class DiscrimModel(Model):
 					self.summaries.append(image_summary("lies_glimpse", lies_glimpse))
 					self.summaries.append(image_summary("truth_glimpse", truth_glimpse))
 					self.summaries.append(image_summary("human_labels", tf.to_float(human_labels)))
+					
+					occluded = random_occlusion(lies_glimpse)
+					reconstruction = reconstruct(occluded)
+					reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=truth_glimpse))
+					
+					self.summaries.append(image_summary("reconstruction", reconstruction))
+					self.summaries.append(image_summary("occluded", occluded))
 
 					truth_discrim_tower = discrim(truth_glimpse)
 					lies_discrim_tower = discrim(lies_glimpse)
@@ -105,10 +112,7 @@ class DiscrimModel(Model):
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(lies_discrim_tower[-1]), labels=has_error(lies_glimpse, human_labels))
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(truth_discrim_tower[-1]), labels=tf.constant(0,dtype=tf.float32))
 
-					reconstruction = reconstruct(random_occlusion(lies_glimpse))
-					self.summaries.append(image_summary("reconstruction", reconstruction))
 
-					reconstruction_loss += tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=reconstruction, labels=truth_glimpse))
 
 		var_list = tf.get_collection(
 			tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
@@ -149,9 +153,9 @@ class DiscrimModel(Model):
 TRAIN = MultiDataset(
 		[
 			os.path.expanduser("~/mydatasets/1_1_1/ds/"),
-			os.path.expanduser("~/mydatasets/1_2_1/ds/"),
-			os.path.expanduser("~/mydatasets/2_1_1/ds/"),
-			os.path.expanduser("~/mydatasets/2_2_1/ds/"),
+			#os.path.expanduser("~/mydatasets/1_2_1/ds/"),
+			#os.path.expanduser("~/mydatasets/2_1_1/ds/"),
+			#os.path.expanduser("~/mydatasets/2_2_1/ds/"),
 		],
 		{
 			"machine_labels": "mean_agg_tr.h5",

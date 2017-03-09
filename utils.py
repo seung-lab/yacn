@@ -150,25 +150,27 @@ def local_error(ground_truth, proposal):
 	return [T, P, S]
 
 def random_occlusion(target):
-	target = tf.to_float(tf_pad_shape(target))
-	patch_size = static_shape(target)
+	target = tf.to_float(target)
+	patch_size = static_shape(target)[1:4]
+	reshaped_target = tf.reshape(target,patch_size)
 
-	xmask=tf.to_float(tf.concat(0,[tf.ones((patch_size[0]/2,patch_size[1],patch_size[2],1)),tf.zeros((patch_size[0]/2,patch_size[1],patch_size[2],1))]))
-	ymask=tf.to_float(tf.concat(1,[tf.ones((patch_size[0],patch_size[1]/2,patch_size[2],1)),tf.zeros((patch_size[0],patch_size[1]/2,patch_size[2],1))]))
-	zmask=tf.to_float(tf.concat(2,[tf.ones((patch_size[0],patch_size[1],patch_size[2]/2,1)),tf.zeros((patch_size[0],patch_size[1],patch_size[2]/2,1))]))
+	xmask=tf.to_float(tf.concat([tf.ones((patch_size[0]-patch_size[0]/2,patch_size[1],patch_size[2])),tf.zeros((patch_size[0]/2,patch_size[1],patch_size[2]))],0))
+	ymask=tf.to_float(tf.concat([tf.ones((patch_size[0],patch_size[1]-patch_size[1]/2,patch_size[2])),tf.zeros((patch_size[0],patch_size[1]/2,patch_size[2]))],1))
+	zmask=tf.to_float(tf.concat([tf.ones((patch_size[0],patch_size[1],patch_size[2]-patch_size[2]/2)),tf.zeros((patch_size[0],patch_size[1],patch_size[2]/2))],2))
 	full = tf.to_float(tf.ones(patch_size))
 
-	xmasks = tf.pack([xmask, 1-xmask, full])
-	ymasks = tf.pack([ymask, 1-ymask, full])
-	zmasks = tf.pack([zmask, 1-ymask, full])
+	xmasks = tf.stack([xmask, 1-xmask, full])
+	ymasks = tf.stack([ymask, 1-ymask, full])
+	zmasks = tf.stack([zmask, 1-ymask, full])
 
-	xchoice = tf.reshape(tf.one_hot(tf.multinomial([0.3*tf.log(0.001+tf.reduce_sum(xmasks*tf.pack([target]), reduction_indices=[1,2,3,4]))],1),3),(3,1,1,1,1))
-	ychoice = tf.reshape(tf.one_hot(tf.multinomial([0.3*tf.log(0.001+tf.reduce_sum(ymasks*tf.pack([target]), reduction_indices=[1,2,3,4]))],1),3),(3,1,1,1,1))
-	zchoice = tf.reshape(tf.one_hot(tf.multinomial([0.3*tf.log(0.001+tf.reduce_sum(zmasks*tf.pack([target]), reduction_indices=[1,2,3,4]))],1),3),(3,1,1,1,1))
+	xchoice = tf.reshape(tf.one_hot(tf.multinomial([0.3*tf.log(0.001+tf.reduce_sum(xmasks*tf.stack([reshaped_target]), reduction_indices=[1,2,3]))],1),3),(3,1,1,1))
+	ychoice = tf.reshape(tf.one_hot(tf.multinomial([0.3*tf.log(0.001+tf.reduce_sum(ymasks*tf.stack([reshaped_target]), reduction_indices=[1,2,3]))],1),3),(3,1,1,1))
+	zchoice = tf.reshape(tf.one_hot(tf.multinomial([0.3*tf.log(0.001+tf.reduce_sum(zmasks*tf.stack([reshaped_target]), reduction_indices=[1,2,3]))],1),3),(3,1,1,1))
 
 	mask = tf.reduce_sum(xmasks*xchoice, reduction_indices=0) * \
 	tf.reduce_sum(ymasks*ychoice, reduction_indices=0) * \
 	tf.reduce_sum(zmasks*zchoice, reduction_indices=0)
+	mask = tf.reshape(mask,[1]+patch_size+[1])
 	return mask*target
 
 def trimmed_sigmoid(logit):
@@ -277,7 +279,7 @@ def vector_argmax(A):
 def categorical2(logits):
 	s=static_shape(logits)
 	U=tf.random_uniform(logits.get_shape())
-	return tf.to_int32(tf.pack(vector_argmax(logits - tf.log(-tf.log(U)))))
+	return tf.to_int32(tf.stack(vector_argmax(logits - tf.log(-tf.log(U)))))
 	
 def linear_to_ind(a,shape):
 	t=[]
