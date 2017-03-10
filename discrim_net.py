@@ -12,7 +12,7 @@ initial_activations = [
 	]
 
 activations = [
-	tf.nn.elu,
+	lambda x: x,
 	tf.nn.elu,
 	tf.nn.elu,
 	tf.nn.elu,
