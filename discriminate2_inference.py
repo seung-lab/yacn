@@ -83,11 +83,15 @@ class DiscrimModel(Model):
 		errors = localized_errors(machine_labels_glimpse, human_labels_glimpse, ds_shape = ds_shape, expander=expander)
 		test_err = upsample_mean(errors, self.padded_patch_size, expander)
 		test_err_mag = tf.reduce_sum(test_err)
+		"""
+		test_err = tf.ones_like(machine_labels_glimpse)
+		test_err_mag=tf.constant(1)
+		"""
 
 		it = ret.__setitem__(focus,tf.maximum(test_err * machine_labels_glimpse,ret[focus]))
 
 		self.sess.run(tf.global_variables_initializer(), feed_dict=initializer_feed_dict)
-		for i in random.sample(range(N),1000):
+		for i in random.sample(range(N),20000):
 			_,mag = self.sess.run([it,test_err_mag], feed_dict={focus_inpt: samples[i,:]})
 			print(str(i) + " " + str(mag))
 
@@ -101,7 +105,7 @@ class DiscrimModel(Model):
 
 TRAIN = MultiDataset(
 		[
-			os.path.expanduser("~/mydatasets/1_2_1/ds/"),
+			os.path.expanduser("~/mydatasets/3_3_1/ds/"),
 		],
 		{
 			"machine_labels": "mean_agg_tr.h5",
