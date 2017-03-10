@@ -42,6 +42,8 @@ def prep(typ,data):
 		if tmp.max() > 10:
 			print "dividing by 256"
 			return tmp/256
+		else:
+			return tmp
 	elif typ in ["human_labels", "machine_labels"]:
 		return autopad(data.astype(np.int32))
 	elif typ in ["valid"]:
