@@ -12,6 +12,7 @@ import discrim_net
 import os
 from datetime import datetime
 from experiments import save_experiment, repo_root
+import random
 
 import tensorflow as tf
 from tensorflow.python.client import timeline
@@ -86,7 +87,7 @@ class DiscrimModel(Model):
 		it = ret.__setitem__(focus,tf.maximum(test_err * machine_labels_glimpse,ret[focus]))
 
 		self.sess.run(tf.global_variables_initializer(), feed_dict=initializer_feed_dict)
-		for i in xrange(0,N,N/10000):
+		for i in random.sample(range(N),1000):
 			_,mag = self.sess.run([it,test_err_mag], feed_dict={focus_inpt: samples[i,:]})
 			print(str(i) + " " + str(mag))
 
@@ -100,7 +101,7 @@ class DiscrimModel(Model):
 
 TRAIN = MultiDataset(
 		[
-			os.path.expanduser("~/mydatasets/3_3_1/ds/"),
+			os.path.expanduser("~/mydatasets/1_2_1/ds/"),
 		],
 		{
 			"machine_labels": "mean_agg_tr.h5",
@@ -118,6 +119,7 @@ pp = pprint.PrettyPrinter(indent=4)
 pp.pprint(args)
 with tf.device(args["devices"][0]):
 	main_model = DiscrimModel(**args)
+#main_model.restore(zenity_workaround())
 print("model initialized")
 if __name__ == '__main__':
 	dataset.h5write(os.path.join(TRAIN.directories[0], "errors.h5"), np.squeeze(main_model.inference(TRAIN.machine_labels[0], TRAIN.human_labels[0], TRAIN.samples[0]),axis=(0,4)))
