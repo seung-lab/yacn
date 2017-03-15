@@ -213,3 +213,18 @@ def upsample_sum(ds, us_shape, expander):
 def upsample_mean(ds, us_shape, expander):
 	return upsample_sum(ds, us_shape, expander) / upsample_sum(tf.ones_like(ds),us_shape, expander)
 
+def upsample_max(ds, us_shape, expander):
+	shape = static_shape(ds)
+	full_shape = us_shape
+	us = tf.Variable(tf.zeros(full_shape))
+	latest = us.assign(tf.zeros(full_shape))
+
+	inds = [[i,j,k] for i in xrange(0,shape[1]) for j in xrange(0,shape[2]) for k in xrange(0,shape[3])]
+	slices = [(slice(0,shape[0]),)+expander((slice(i,i+1), slice(j,j+1),slice(k,k+1))) + (slice(0,shape[4]),) for i,j,k in inds]
+
+	for (i,j,k),s in zip(inds, slices):
+		with tf.control_dependencies([latest]):
+			latest = us[s].assign(tf.maximum(us[s],ds[:,i,j,k,:]*tf.ones_like(us[s])))
+	
+	with tf.control_dependencies([latest]):
+		return tf.identity(us)
