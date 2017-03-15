@@ -1,0 +1,4 @@
+#!/bin/bash
+#ulimit -v 32000000
+sudo LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64" CUDA_HOME="/usr/local/cuda" TF_CPP_MIN_LOG_LEVEL=1 bpython -i glance.py
+
