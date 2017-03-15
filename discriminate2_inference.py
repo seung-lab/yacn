@@ -65,35 +65,49 @@ class DiscrimModel(Model):
 		N=samples.shape[0]
 		initializer_feed_dict={}
 		ret = Volume(static_constant_variable(np.zeros_like(machine_labels,dtype=np.float32),initializer_feed_dict), self.padded_patch_size)
+		visited = Volume(static_constant_variable(np.zeros_like(machine_labels,dtype=np.int32),initializer_feed_dict), self.padded_patch_size)
 		machine_labels = Volume(static_constant_variable(machine_labels,initializer_feed_dict), self.padded_patch_size)
 		human_labels = Volume(static_constant_variable(human_labels,initializer_feed_dict), self.padded_patch_size)
 		focus_inpt = tf.placeholder(shape=(3,),dtype=tf.int32)
+		initializer_feed_dict[focus_inpt]=np.array([128,500,500])
 		focus=tf.concat([[0],focus_inpt,[0]],0)
 
 		machine_labels_glimpse = equal_to_centre(machine_labels[focus])
 		human_labels_glimpse = human_labels[focus]
+		coverage_mask = tf.ones_like(machine_labels_glimpse)
 
-		discrim_tower = self.discrim(machine_labels_glimpse)
-		i=3
-		ds_shape = static_shape(discrim_tower[i])
-		print(ds_shape)
-		expander = compose(*reversed(discrim_net.range_expanders[0:i]))
-		otpt = upsample_mean(tf.nn.sigmoid(discrim_tower[i]), self.padded_patch_size, expander)
+		self.sess.run(tf.global_variables_initializer(),feed_dict=initializer_feed_dict)
+
+		def f():
+			with tf.device("/gpu:0"):
+				discrim_tower = self.discrim(machine_labels_glimpse)
+			i=3
+			ds_shape = static_shape(discrim_tower[i])
+			print(ds_shape)
+			expander = compose(*reversed(discrim_net.range_expanders[0:i]))
+			otpt = upsample_max(tf.nn.sigmoid(discrim_tower[i]), self.padded_patch_size, expander)
+			
+			#errors = localized_errors(machine_labels_glimpse, human_labels_glimpse, ds_shape = ds_shape, expander=expander)
+			#test_err = upsample_max(errors, self.padded_patch_size, expander)
+			#test_err_mag = tf.reduce_sum(test_err)
+			#test_err = tf.Print(test_err, [test_err_mag])
+			with tf.control_dependencies([
+					ret.__setitem__(focus,tf.maximum(coverage_mask * otpt * machine_labels_glimpse,ret[focus])), 
+					visited.__setitem__(focus,tf.add(tf.to_int32(coverage_mask * machine_labels_glimpse), visited[focus]))
+					]):
+				return tf.no_op()
+
+		it = tf.cond(visited.A[focus[0],focus[1],focus[2],focus[3],focus[4]] > 3,
+				lambda: tf.no_op(),
+				f)
+
+		self.sess.run(tf.global_variables_initializer(),feed_dict=initializer_feed_dict)
 		
-		errors = localized_errors(machine_labels_glimpse, human_labels_glimpse, ds_shape = ds_shape, expander=expander)
-		test_err = upsample_mean(errors, self.padded_patch_size, expander)
-		test_err_mag = tf.reduce_sum(test_err)
-		"""
-		test_err = tf.ones_like(machine_labels_glimpse)
-		test_err_mag=tf.constant(1)
-		"""
+		self.restore(zenity_workaround())
 
-		it = ret.__setitem__(focus,tf.maximum(test_err * machine_labels_glimpse,ret[focus]))
-
-		self.sess.run(tf.global_variables_initializer(), feed_dict=initializer_feed_dict)
-		for i in random.sample(range(N),20000):
-			_,mag = self.sess.run([it,test_err_mag], feed_dict={focus_inpt: samples[i,:]})
-			print(str(i) + " " + str(mag))
+		for i in random.sample(range(N),N):
+			_= self.sess.run(it, feed_dict={focus_inpt: samples[i,:]})
+			print(str(i))
 
 		return self.sess.run(ret.A)
 
@@ -121,9 +135,9 @@ args = {
 
 pp = pprint.PrettyPrinter(indent=4)
 pp.pprint(args)
-with tf.device(args["devices"][0]):
+with tf.device("/cpu:0"):
 	main_model = DiscrimModel(**args)
 #main_model.restore(zenity_workaround())
 print("model initialized")
 if __name__ == '__main__':
-	dataset.h5write(os.path.join(TRAIN.directories[0], "errors.h5"), np.squeeze(main_model.inference(TRAIN.machine_labels[0], TRAIN.human_labels[0], TRAIN.samples[0]),axis=(0,4)))
+	dataset.h5write(os.path.join(TRAIN.directories[0], "errors3.h5"), np.squeeze(main_model.inference(TRAIN.machine_labels[0], TRAIN.human_labels[0], TRAIN.samples[0]),axis=(0,4)))
