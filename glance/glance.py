@@ -26,13 +26,15 @@ import scipy.ndimage.measurements as measurements
 
 patch_size=[318,318,33]
 resolution=[4,4,40]
+full_size=[2048,2048,256]
 #discrim_daemon = glance_utils.ComputeDaemon(glance_utils.run_discrim)
 trace_daemon = glance_utils.ComputeDaemon(glance_utils.run_trace)
 #error_daemon = glance_utils.ComputeDaemon(glance_utils.run_local_error)
 
 neuroglancer.server.debug=False
-neuroglancer.server.global_server_args['bind_port']=80
+neuroglancer.server.global_server_args['bind_port']=3389
 neuroglancer.server.global_bind_port2=9100
+neuroglancer.volume.ENABLE_MESHES=False
 
 files = []
 
@@ -50,8 +52,8 @@ def get_current_region():
 	return pos, get_region(pos)
 
 def get_region(pos):
+	assert all([patch_size[i]/2 < pos[i] < (full_size[i] - patch_size[i]/2) for i in range(3)])
 	return tuple([slice(pos[i]-patch_size[i]/2,pos[i]+patch_size[i]-patch_size[i]/2) for i in range(3)])
-
 
 def get_selected_set():
 	s=Set(map(int,viewer.state['layers']['raw_labels']['segments']))
@@ -80,7 +82,7 @@ def trace():
 	print("done")
 	return traced, labels_cutout
 
-def commit(traced, labels_cutout, low_threshold=0.2, high_threshold=0.8):
+def commit(traced, labels_cutout, low_threshold=0.3, high_threshold=0.7):
 	unique_list = np.unique(labels_cutout)
 	traced_list = measurements.mean(traced, labels_cutout, unique_list)
 	print(zip(traced_list, unique_list))
@@ -119,6 +121,7 @@ def draw_bbox(current_position):
 					tmp.append(map(operator.add,current_position, [i*patch_size[0]/2, j*patch_size[1]/2, -k*patch_size[2]/2]))
 
 	viewer.state['layers']['bbox']['points'] = tmp
+	viewer.broadcast()
 
 def load_neighbours(threshold=0.1):
 	pos, region = get_current_region()
@@ -138,6 +141,20 @@ def load_neighbours(threshold=0.1):
 	viewer.state['layers']['raw_labels']['segments'] = sorted(map(int,expand_list(G,current_segments + additional_segments)))
 	viewer.broadcast()
 
+def perturb(sample,radius):
+	#sample should be in xyz order
+	region = tuple([slice(x-y,x+y+1,None) for x,y in zip(sample,radius)])
+	print(region)
+	mask = (raw_labels[rev_tuple(region)]==raw_labels[rev_tuple(tuple(sample))]).astype(np.int32)
+
+	patch = np.minimum(affinities[(0,)+rev_tuple(region)], mask)
+	tmp=np.unravel_index(patch.argmax(),patch.shape)
+	return [t+x-y for t,x,y in zip(reversed(tmp),sample,radius)]
+
+def perturb_position(radius=(15,15,1)):
+	pos,current_region=get_current_region()
+	set_location(perturb(pos,radius=radius))
+
 def load(ind=None):
 	if ind is None:
 		pos,region = get_current_region()
@@ -148,12 +165,19 @@ def load(ind=None):
 	else:
 		x,y,z=ind
 	current_segments = [int(raw_labels[z,y,x])]
-
-	viewer.state['layers']['raw_labels']['segments'] = sorted(map(int,expand_list(G,current_segments)))
-	print(viewer.state['layers']['raw_labels']['segments'])
-	viewer.state['navigation']['pose']['position']['voxelCoordinates'] = pos
+	set_selection(current_segments)
+	set_location(pos)
 	draw_bbox(pos)
+
+def set_selection(segments):
+	viewer.state['layers']['raw_labels']['segments'] = sorted(map(int,expand_list(G,segments)))
+	print(viewer.state['layers']['raw_labels']['segments'])
 	viewer.broadcast()
+
+def set_location(pos):
+	viewer.state['navigation']['pose']['position']['voxelCoordinates'] = pos
+	viewer.broadcast()
+
 
 neuroglancer.set_static_content_source(url='http://seungworkstation15.princeton.edu:8080')
 
@@ -173,6 +197,7 @@ with h5py.File(os.path.join(basename,"edges.h5"),'r') as f:
 image = h5read(os.path.join(basename,"image.h5"))
 errors = h5read(os.path.join(basename,"errors3.h5"))
 raw_labels = h5read(os.path.join(basename,"raw.h5"))
+affinities = h5read(os.path.join(basename,"aff.h5"))
 #human_labels = h5read(os.path.join(basename,"proofread.h5"))
 #machine_labels= h5read(os.path.join(basename,"mean_agg_tr.h5"))
 
