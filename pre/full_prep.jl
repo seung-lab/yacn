@@ -6,6 +6,7 @@ using BigArrays.AlignedBigArrays
 include("utils.jl")
 include("reweight2.jl")
 include("downsample.jl")
+include("compute_regiongraph.jl")
 
 xindices = [14977:17024,16513:18560,18049:20096]
 yindices = [27265:29312,28801:30848,30337:32384]
@@ -15,6 +16,7 @@ prefix = expanduser("~/seungmount/Omni/TracerTasks/pinky/proofreading/")
 function do_prep(basename, patch_size = (318,318,33))
 	valid = to_indicator(parse_valid_file(joinpath(basename,"valid.txt")))
 	Save.save(joinpath(basename,"valid.h5"),valid)
+
 	mean_labels = h5read(joinpath(basename,"mean_agg_tr.h5"),"/main")
 	full_size = size(mean_labels)
 
@@ -25,6 +27,10 @@ function do_prep(basename, patch_size = (318,318,33))
 
 	samples = gen_samples(mean_labels, patch_size = patch_size, N=400000, mask=valid_mask, M=30)
 	Save.save(joinpath(basename,"samples.h5"), samples)
+
+	vertices,edges = compute_regiongraph(raw, mean_labels)
+	Save.save(joinpath(basename,"vertices.h5"), vertices)
+	Save.save(joinpath(basename,"edges.h5"), edges)
 end
 
 function downsample(basename)
@@ -57,5 +63,5 @@ for rx in xindices, ry in yindices, rz in zindices
 	#img = fetch_image(rx,ry,rz)
 	#Save.save(joinpath(basename,"image.h5"), img)
 	do_prep(basename)
-	downsample(basename)
+	#downsample(basename)
 end
