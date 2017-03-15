@@ -15,12 +15,14 @@ def make_graph(vertices, edges):
 def add_clique(G, vertices):
 	for i in xrange(len(vertices)):
 		for j in xrange(i,len(vertices)):
-			G.add_edge(i,j)
+			G.add_edge(vertices[i],vertices[j])
 	
 def delete_bipartite(G, vertices1, vertices2):
 	for v1 in vertices1:
 		for v2 in vertices2:
-			G.remove_edge(v1,v2)
+			if G.has_edge(v1,v2):
+				print "deleted edge", v1, v2
+				G.remove_edge(v1,v2)
 
 def expand_list(G,l):
 	s=set()

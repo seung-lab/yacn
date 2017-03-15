@@ -78,6 +78,21 @@ def trace():
 	viewer.state['layers']['trace'+str(counter)]=l.get_layer_spec(viewer.get_server_url())
 	viewer.broadcast()
 	print("done")
+	return traced, labels_cutout
+
+def commit(traced, labels_cutout, low_threshold=0.2, high_threshold=0.8):
+	unique_list = np.unique(labels_cutout)
+	traced_list = measurements.mean(traced, labels_cutout, unique_list)
+	print(zip(traced_list, unique_list))
+	positive = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]>high_threshold]
+	negative = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]<low_threshold]
+	positive = filter(lambda x: x != 0, positive)
+	negative = filter(lambda x: x != 0, negative)
+	print(positive)
+	print(negative)
+	regiongraphs.add_clique(G,positive)
+	regiongraphs.delete_bipartite(G,positive,negative)
+
 
 def discrim():
 	pos, region = get_current_region()
@@ -123,13 +138,15 @@ def load_neighbours(threshold=0.1):
 	viewer.state['layers']['raw_labels']['segments'] = sorted(map(int,expand_list(G,current_segments + additional_segments)))
 	viewer.broadcast()
 
-def load_example(example_ind=None):
-	if example_ind is None:
+def load(ind=None):
+	if ind is None:
 		pos,region = get_current_region()
 		x,y,z=pos
-	else:
-		z,y,x = samples[example_ind,:]
+	elif type(ind)==int:
+		z,y,x = samples[ind,:]
 		pos = [x,y,z]
+	else:
+		x,y,z=ind
 	current_segments = [int(raw_labels[z,y,x])]
 
 	viewer.state['layers']['raw_labels']['segments'] = sorted(map(int,expand_list(G,current_segments)))
@@ -139,12 +156,6 @@ def load_example(example_ind=None):
 	viewer.broadcast()
 
 neuroglancer.set_static_content_source(url='http://seungworkstation15.princeton.edu:8080')
-
-h5_file_handles=[]
-def h5read(path):
-	f=h5py.File(path,'r')
-	h5_file_handles.append(f)
-	return f['main']
 
 #basename = sys.argv[1]
 basename=os.path.expanduser("~/mydatasets/3_3_1/")
@@ -162,18 +173,19 @@ with h5py.File(os.path.join(basename,"edges.h5"),'r') as f:
 image = h5read(os.path.join(basename,"image.h5"))
 errors = h5read(os.path.join(basename,"errors3.h5"))
 raw_labels = h5read(os.path.join(basename,"raw.h5"))
-human_labels = h5read(os.path.join(basename,"proofread.h5"))
+#human_labels = h5read(os.path.join(basename,"proofread.h5"))
+#machine_labels= h5read(os.path.join(basename,"mean_agg_tr.h5"))
 
 
 G=regiongraphs.make_graph(vertices,edges)
 #graph_server_url=graph_server.start_server(G)
 #graph_server_url="http://localhost:8088"
 
+errors=errors[:]
 print("...done")
 
-print("sorted samples...")
+print("sorting samples...")
 nsamples = samples.shape[0]
-errors=errors[:]
 weights = errors[[samples[:,0],samples[:,1],samples[:,2]]]
 
 perm = np.argsort(weights)[::-1]
@@ -190,7 +202,7 @@ viewer.on_state_changed = on_state_changed
 #viewer.add(data=np.array([[[0]]],dtype=np.uint8), volume_type='image', name='dummy', voxel_size=resolution)
 viewer.add(data=image, volume_type='image', name='image', voxel_size=resolution)
 viewer.add(data=errors, volume_type='image', name='errors', voxel_size=resolution)
-#viewer.add(data=labels, volume_type='segmentation', name='labels', voxel_size=resolution)
+#viewer.add(data=machine_labels, volume_type='segmentation', name='machine_labels', voxel_size=resolution)
 viewer.add(data=raw_labels, volume_type='segmentation', name='raw_labels', voxel_size=resolution)
 #viewer.add(data=human_labels, volume_type='segmentation', name='human_labels', voxel_size=resolution)
 viewer.add(data=[], volume_type='synapse', name="bbox")
