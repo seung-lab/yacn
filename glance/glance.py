@@ -13,7 +13,6 @@ import neuroglancer
 import numpy as np
 import pandas as pd
 from sets import Set
-from collections import  defaultdict
 import os.path
 
 from multiprocessing import Process, Queue
@@ -29,12 +28,11 @@ resolution=[4,4,40]
 full_size=[2048,2048,256]
 #discrim_daemon = glance_utils.ComputeDaemon(glance_utils.run_discrim)
 trace_daemon = glance_utils.ComputeDaemon(glance_utils.run_trace)
-#error_daemon = glance_utils.ComputeDaemon(glance_utils.run_local_error)
 
 neuroglancer.server.debug=False
-neuroglancer.server.global_server_args['bind_port']=3389
+neuroglancer.server.global_server_args['bind_port']=80
 neuroglancer.server.global_bind_port2=9100
-neuroglancer.volume.ENABLE_MESHES=False
+neuroglancer.volume.ENABLE_MESHES=True
 
 files = []
 
@@ -134,7 +132,8 @@ def load_neighbours(threshold=0.1):
 
 	unique_list = np.unique(labels_cutout)
 	max_error_list = measurements.maximum(errors_cutout,labels_cutout, unique_list)
-	additional_segments = [unique_list[i] for i in xrange(len(unique_list)) if max_error_list[i]>threshold]
+	additional_segments = [unique_list[i] for i in xrange(len(unique_list)) if max_error_list[i]>threshold or max_error_list[i]==0.0]
+	additional_segments = filter(lambda x: x != 0, additional_segments)
 
 	print(current_segments + additional_segments)
 
@@ -155,22 +154,26 @@ def perturb_position(radius=(15,15,1)):
 	pos,current_region=get_current_region()
 	set_location(perturb(pos,radius=radius))
 
-def load(ind=None):
+def load(ind=None,append=False):
 	if ind is None:
 		pos,region = get_current_region()
 		x,y,z=pos
 	elif type(ind)==int:
+		global current_index
+		current_index=ind
 		z,y,x = samples[ind,:]
 		pos = [x,y,z]
 	else:
 		x,y,z=ind
 	current_segments = [int(raw_labels[z,y,x])]
+	if append:
+		current_segments = current_segments + map(int, viewer.state['layers']['raw_labels']['segments'])
 	set_selection(current_segments)
 	set_location(pos)
 	draw_bbox(pos)
 
 def set_selection(segments):
-	viewer.state['layers']['raw_labels']['segments'] = sorted(map(int,expand_list(G,segments)))
+	viewer.state['layers']['raw_labels']['segments'] = sorted(list(set(map(int,expand_list(G,segments)))))
 	print(viewer.state['layers']['raw_labels']['segments'])
 	viewer.broadcast()
 
@@ -178,6 +181,22 @@ def set_location(pos):
 	viewer.state['navigation']['pose']['position']['voxelCoordinates'] = pos
 	viewer.broadcast()
 
+def auto_trace():
+	perturb_position()
+	raw_input()
+	load_neighbours(threshold=0.5)
+	raw_input()
+	t=trace()
+	raw_input()
+	commit(*t)
+	raw_input()
+	load()
+
+current_index = 0
+def next_index(jump=1):
+	global current_index
+	current_index = current_index + jump
+	return current_index
 
 neuroglancer.set_static_content_source(url='http://seungworkstation15.princeton.edu:8080')
 
@@ -188,10 +207,10 @@ with h5py.File(os.path.join(basename,"samples.h5"),'r') as f:
 	#careful! These are in z,y,x order
 	samples = f['main'][:]
 
-with h5py.File(os.path.join(basename,"vertices.h5"),'r') as f:
+with h5py.File(os.path.join(basename,"vertices_revised.h5"),'r') as f:
 	vertices = f['main'][:]
 
-with h5py.File(os.path.join(basename,"edges.h5"),'r') as f:
+with h5py.File(os.path.join(basename,"edges_revised.h5"),'r') as f:
 	edges= f['main'][:]
 
 image = h5read(os.path.join(basename,"image.h5"))
