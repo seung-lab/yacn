@@ -24,7 +24,10 @@ class DiscrimModel(Model):
 				 truth_data,
 				 lies_data,
 				 samples,
-				 devices, name=None):
+				 devices, 
+				 train_vols=[0],
+				 test_vols=[1],
+				 name=None):
 
 		self.name=name
 		self.summaries = []
@@ -61,13 +64,18 @@ class DiscrimModel(Model):
 		init = tf.global_variables_initializer()
 		self.sess.run(init, feed_dict=initializer_feed_dict)
 
+		self.iteration_type=tf.placeholder(shape=[],dtype=tf.int32)
+
 		print("initialized1")
 		loss=0
 		reconstruction_loss=0
 		for i,d in enumerate(devices):
 			with tf.device(d):
 				with tf.name_scope("gpu"+str(i)):
-					vol_id=tf.random_uniform([], minval=0, maxval=n_volumes, dtype=np.int32)
+					vol_id = tf.cond(tf.equal(self.iteration_type,0),
+							lambda: random_sample(tf.constant(train_vols)),
+							lambda: random_sample(tf.constant(test_vols)),
+							)
 					focus_lies=tf.concat([[0],tf.reshape(samples[vol_id,('RAND',0)],(3,)),[0]],0)
 					focus_lies = tf.Print(focus_lies, [vol_id, focus_lies], summarize=10)
 			
@@ -112,34 +120,43 @@ class DiscrimModel(Model):
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(lies_discrim_tower[-1]), labels=has_error(lies_glimpse, human_labels))
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(truth_discrim_tower[-1]), labels=tf.constant(0,dtype=tf.float32))
 
-
+		loss = loss/len(devices)
+		reconstruction_loss = loss/len(devices)
 
 		var_list = tf.get_collection(
 			tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
 
-		optimizer = tf.train.AdamOptimizer(0.001, beta1=0.9, epsilon=0.1)
-		train_op = optimizer.minimize(1e5*loss + reconstruction_loss, colocate_gradients_with_ops=True, var_list = var_list)
+		def train_op():
+			optimizer = tf.train.AdamOptimizer(0.001, beta1=0.9, epsilon=0.1)
+			op = optimizer.minimize(1e5*loss + reconstruction_loss, colocate_gradients_with_ops=True, var_list = var_list)
 
-		with tf.control_dependencies([train_op]):
-			with tf.control_dependencies([self.step.assign_add(1)]):
-				train_op = tf.group(
-						tf.Print(0, [tf.identity(self.step), loss], message="step|loss"),
-						)
-						
-				quick_summary_op = tf.summary.merge([
-					tf.summary.scalar("loss", loss),
-					tf.summary.scalar("reconstruction_loss", reconstruction_loss),
-				])
+			with tf.control_dependencies([op]):
+				with tf.control_dependencies([self.step.assign_add(1)]):
+					op = tf.group(
+							tf.Print(0, [tf.identity(self.step), loss], message="step|loss"),
+							)
+							
+					quick_summary_op = tf.summary.merge([
+						tf.summary.scalar("loss", loss),
+						tf.summary.scalar("reconstruction_loss", reconstruction_loss),
+					])
+			return op, quick_summary_op
+		def test_op():
+			quick_summary_op = tf.summary.merge([
+						tf.summary.scalar("test_loss", loss),
+						tf.summary.scalar("test_reconstruction_loss", reconstruction_loss)])
+			return tf.no_op(), quick_summary_op
 
-		self.summaries.append(tf.summary.scalar("loss",loss))
+		self.iter_op, self.quick_summary_op = tf.cond(tf.equal(self.iteration_type,0),
+			train_op,
+			test_op)
+
 		summary_op = tf.summary.merge(self.summaries)
 
 		init = tf.global_variables_initializer()
 		self.sess.run(init, feed_dict=initializer_feed_dict)
 
-		self.saver = tf.train.Saver(var_list=var_list)
-		self.train_op = train_op
-		self.quick_summary_op = quick_summary_op
+		self.saver = tf.train.Saver(var_list=var_list,keep_checkpoint_every_n_hours=2)
 		self.summary_op = summary_op
 	
 	def get_filename(self):
@@ -147,15 +164,16 @@ class DiscrimModel(Model):
 
 	def interrupt(self):
 		return
-	def train_feed_dict(self):
-		return {}
 
 TRAIN = MultiDataset(
 		[
 			os.path.expanduser("~/mydatasets/1_1_1/ds/"),
-			#os.path.expanduser("~/mydatasets/1_2_1/ds/"),
-			#os.path.expanduser("~/mydatasets/2_1_1/ds/"),
-			#os.path.expanduser("~/mydatasets/2_2_1/ds/"),
+			os.path.expanduser("~/mydatasets/1_2_1/ds/"),
+			os.path.expanduser("~/mydatasets/2_1_1/ds/"),
+			os.path.expanduser("~/mydatasets/2_2_1/ds/"),
+
+			os.path.expanduser("~/mydatasets/1_3_1/ds/"),
+			os.path.expanduser("~/mydatasets/3_1_1/ds/"),
 		],
 		{
 			"machine_labels": "mean_agg_tr.h5",
@@ -171,13 +189,15 @@ args = {
 	"truth_data": TRAIN.human_labels,
 	"lies_data": TRAIN.machine_labels,
 	"samples": TRAIN.samples,
+	"train_vols": [0,1,2,3],
+	"test_vols": [4,5]
 }
 
 #pp = pprint.PrettyPrinter(indent=4)
 #pp.pprint(args)
 #with tf.device(args["devices"][0]):
 main_model = DiscrimModel(**args)
-main_model.restore(zenity_workaround())
+#main_model.restore(zenity_workaround())
 print("model initialized")
 if __name__ == '__main__':
-	main_model.train(nsteps=1000000, checkpoint_interval=200)
+	main_model.train(nsteps=1000000, checkpoint_interval=1000)

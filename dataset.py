@@ -40,7 +40,7 @@ def prep(typ,data):
 	if typ in ["image", "errors"]:
 		tmp=autopad(data.astype(np.float32))
 		if tmp.max() > 10:
-			print "dividing by 256"
+			#print "dividing by 256"
 			return tmp/256
 		else:
 			return tmp

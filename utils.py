@@ -19,23 +19,28 @@ class Model():
 		modelpath = os.path.expanduser(modelpath)
 		self.saver.restore(self.sess, modelpath)
 
-	def train(self, nsteps=100000, checkpoint_interval=1000):
+	def train(self, nsteps=100000, checkpoint_interval=1000, test_interval=10):
 		self.init_log()
 		for i in xrange(nsteps):
 			try:
 				with DelayedKeyboardInterrupt():
 					t = time.time()
+					if i % test_interval==0:
+						iteration_type=1
+					else:
+						iteration_type=0
 					step=self.sess.run(self.step)
 					if i==5:
 						_, quick_summary = self.sess.run(
-							[self.train_op, self.quick_summary_op], options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE), run_metadata=self.run_metadata, feed_dict=self.train_feed_dict())
+								[self.iter_op, self.quick_summary_op], options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE), run_metadata=self.run_metadata, feed_dict={self.iteration_type:iteration_type})
 						trace = timeline.Timeline(step_stats=self.run_metadata.step_stats)
 						trace_file = open('timeline.ctf.json', 'w')
 						trace_file.write(trace.generate_chrome_trace_format())
 						trace_file.flush()
 					else:
+
 						_, quick_summary = self.sess.run(
-							[self.train_op, self.quick_summary_op], feed_dict=self.train_feed_dict())
+								[self.iter_op, self.quick_summary_op], feed_dict={self.iteration_type:iteration_type})
 
 					elapsed = time.time() - t
 					print("elapsed: ", elapsed)
@@ -43,7 +48,7 @@ class Model():
 					if i % checkpoint_interval == 0:
 						print("checkpointing...")
 						self.saver.save(self.sess, self.logdir + "model" + str(step) + ".ckpt")
-						self.summary_writer.add_summary(self.sess.run(self.summary_op, feed_dict=self.train_feed_dict()), step)
+						self.summary_writer.add_summary(self.sess.run(self.summary_op, feed_dict={self.iteration_type:0}), step)
 						self.summary_writer.flush()
 						call(["touch",self.logdir+"model"+str(step) + ".ckpt"])
 						print("done")
@@ -373,3 +378,7 @@ def zenity_workaround():
 	exit_code=process.wait()
 	return output.strip()
 
+def random_sample(A):
+	s=static_shape(A)
+	assert len(s)==1
+	return A[tf.random_uniform([],minval=0, maxval=s[0],dtype=tf.int32)]

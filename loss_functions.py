@@ -171,7 +171,7 @@ def has_error(obj, human_labels):
 	ind = tf.to_int32(tf.argmax(obj, axis=0))
 	x1=tf.equal(obj, obj[ind])
 	x2=tf.equal(human_labels, human_labels[ind])
-	return tf.to_float(tf.logical_not(tf.logical_or(tf.less(tf.reduce_sum(obj),1),tf.reduce_all(tf.equal(x1,x2)))))
+	return tf.to_float(tf.logical_not(tf.logical_or(tf.less(obj[ind],0.5),tf.reduce_all(tf.equal(x1,x2)))))
 
 def localized_errors(obj, human_labels, ds_shape, expander):
 	return downsample([obj,human_labels], ds_shape, expander, has_error)
