@@ -37,7 +37,7 @@ class VectorLabelModel(Model):
 		self.nvec_labels = nvec_labels
 
 		config = tf.ConfigProto(
-			#gpu_options = tf.GPUOptions(allow_growth=True),
+			gpu_options = tf.GPUOptions(allow_growth=True),
 			allow_soft_placement=True,
 			#log_device_placement=True,
 			#gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.9),
@@ -69,10 +69,8 @@ class VectorLabelModel(Model):
 	def test(self, image, mask):
 		image = dataset.prep("image",image)
 		mask = dataset.prep("image",mask)
-		return self.sess.run(self.expansion_test, feed_dict={self.image_feed: image, self.mask_feed: mask})
-
-	def train_feed_dict(self):
-		return self.default_train_dict
+		ret = self.sess.run(self.expansion_test, feed_dict={self.image_feed: image, self.mask_feed: mask})
+		return ret
 
 patch_size=(33,318,318)
 args = {

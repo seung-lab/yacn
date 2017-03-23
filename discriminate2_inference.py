@@ -107,47 +107,63 @@ class DiscrimModel(Model):
 	
 	#plan: assign to each object the magnitude of the max value of the error detector in the window.
 	#vol should be machine_labels of size [1,X,Y,Z,1]
-	def inference(self, machine_labels, samples):
-		N=samples.shape[0]
+	def inference(self, machine_labels, sample_generator):
 		self.sess.run(self.full_array_initializer, feed_dict={
 			self.machine_labels_placeholder: machine_labels, 
 			self.ret_placeholder: np.zeros_like(machine_labels,dtype=np.float32), 
 			self.visited_placeholder: np.zeros_like(machine_labels,dtype=np.int32)})
 		
-		for i in random.sample(range(N),N):
-			_= self.sess.run(self.it, feed_dict={self.focus_inpt: samples[i,:]})
-			print(str(i))
+		for sample in sample_generator:
+			_= self.sess.run(self.it, feed_dict={self.focus_inpt: sample})
 
 		return self.sess.run(self.ret)
-
-	def test_local_errors(self,inpt,human_labels):
-		return self.sess.run(self.test_err, feed_dict={self.test_inpt:inpt, self.test_human_labels: human_labels})
 
 	def get_filename(self):
 		return os.path.splitext(os.path.basename(__file__))[0]
 
-TRAIN = MultiDataset(
-		[
-			#os.path.expanduser("~/seungmount/research/ranl/error_detector/ds/"),
-			os.path.expanduser("~/mydatasets/1_3_1/ds/"),
-		],
-		{
-			"machine_labels": "mean_agg_tr.h5",
-			"samples": "samples.h5",
-		}
-)
-args = {
-	"devices": get_device_list(),
-	"patch_size": tuple(discrim_net.patch_size_suggestions([2,3,3])[0]),
-	"full_size": tuple(TRAIN.machine_labels[0].shape),
-	"name": "test",
-}
+#samples should be a (N,3) array
+def random_sample_generator(samples,k=None):
+	N=samples.shape[0]
+	if k is None:
+		k=N
+	for i in random.sample(range(N),k):
+		print(i)
+		yield samples[i,:]
 
-pp = pprint.PrettyPrinter(indent=4)
-pp.pprint(args)
-with tf.device("/cpu:0"):
-	main_model = DiscrimModel(**args)
-main_model.restore(zenity_workaround())
-print("model initialized")
+def __init__(full_size, checkpoint=None):
+	global main_model
+	args = {
+		"devices": get_device_list(),
+		"patch_size": tuple(discrim_net.patch_size_suggestions([2,3,3])[0]),
+		"full_size": full_size,
+		"name": "test",
+	}
+	pp = pprint.PrettyPrinter(indent=4)
+	pp.pprint(args)
+	with tf.device("/cpu:0"):
+		main_model = DiscrimModel(**args)
+	if checkpoint is None:
+		main_model.restore(zenity_workaround())
+	else:
+		main_model.restore(checkpoint)
+	print("model initialized")
+
 if __name__ == '__main__':
-	dataset.h5write(os.path.join(TRAIN.directories[0], "errors.h5"), np.squeeze(main_model.inference(TRAIN.machine_labels[0], TRAIN.samples[0]),axis=(0,4)))
+	TRAIN = MultiDataset(
+			[
+				#os.path.expanduser("~/seungmount/research/ranl/error_detector/ds/"),
+				os.path.expanduser("~/mydatasets/3_3_1/ds/"),
+			],
+			{
+				"machine_labels": "mean_agg_tr.h5",
+				"samples": "samples.h5",
+			}
+	)
+	__init__(full_size=tuple(TRAIN.machine_labels[0].shape))
+
+	dataset.h5write(os.path.join(TRAIN.directories[0], "errors4.h5"), 
+			np.squeeze(
+				main_model.inference(
+					TRAIN.machine_labels[0], 
+					sample_generator = random_sample_generator(TRAIN.samples[0])),
+				axis=(0,4)))
