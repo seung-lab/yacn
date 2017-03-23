@@ -27,9 +27,10 @@ patch_size=[318,318,33]
 resolution=[4,4,40]
 full_size=[2048,2048,256]
 #discrim_daemon = glance_utils.ComputeDaemon(glance_utils.run_discrim)
-trace_daemon = glance_utils.ComputeDaemon(glance_utils.run_trace)
+#trace_daemon = glance_utils.ComputeDaemon(glance_utils.run_trace)
 
 neuroglancer.server.debug=False
+neuroglancer.server.global_server_args['bind_address']='seungworkstation1000.princeton.edu'
 neuroglancer.server.global_server_args['bind_port']=80
 neuroglancer.server.global_bind_port2=9100
 neuroglancer.volume.ENABLE_MESHES=True
@@ -198,7 +199,7 @@ def next_index(jump=1):
 	current_index = current_index + jump
 	return current_index
 
-neuroglancer.set_static_content_source(url='http://seungworkstation15.princeton.edu:8080')
+neuroglancer.set_static_content_source(url='http://seungworkstation1000.princeton.edu:8080')
 
 #basename = sys.argv[1]
 basename=os.path.expanduser("~/mydatasets/3_3_1/")
@@ -213,10 +214,10 @@ with h5py.File(os.path.join(basename,"vertices_revised.h5"),'r') as f:
 with h5py.File(os.path.join(basename,"edges_revised.h5"),'r') as f:
 	edges= f['main'][:]
 
-image = h5read(os.path.join(basename,"image.h5"))
-errors = h5read(os.path.join(basename,"errors3.h5"))
-raw_labels = h5read(os.path.join(basename,"raw.h5"))
-affinities = h5read(os.path.join(basename,"aff.h5"))
+image = h5read(os.path.join(basename,"image.h5"))[:]
+errors = h5read(os.path.join(basename,"errors3.h5"))[:]
+raw_labels = h5read(os.path.join(basename,"raw.h5"))[:]
+affinities = h5read(os.path.join(basename,"aff.h5"))[:]
 #human_labels = h5read(os.path.join(basename,"proofread.h5"))
 #machine_labels= h5read(os.path.join(basename,"mean_agg_tr.h5"))
 
@@ -225,7 +226,6 @@ G=regiongraphs.make_graph(vertices,edges)
 #graph_server_url=graph_server.start_server(G)
 #graph_server_url="http://localhost:8088"
 
-errors=errors[:]
 print("...done")
 
 print("sorting samples...")
