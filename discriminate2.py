@@ -121,7 +121,7 @@ class DiscrimModel(Model):
 					loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reduce_sum(truth_discrim_tower[-1]), labels=tf.constant(0,dtype=tf.float32))
 
 		loss = loss/len(devices)
-		reconstruction_loss = loss/len(devices)
+		reconstruction_loss = reconstruction_loss/len(devices)
 
 		var_list = tf.get_collection(
 			tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
