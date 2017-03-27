@@ -107,11 +107,15 @@ class DiscrimModel(Model):
 	
 	#plan: assign to each object the magnitude of the max value of the error detector in the window.
 	#vol should be machine_labels of size [1,X,Y,Z,1]
-	def inference(self, machine_labels, sample_generator):
+	def inference(self, machine_labels, sample_generator, ret=None, visited=None):
+		if ret is None:
+			ret = np.zeros_like(machine_labels, dtype=np.float32)
+		if visited is None:
+			visited = np.zeros_like(machine_labels, dtype=np.int32)
 		self.sess.run(self.full_array_initializer, feed_dict={
 			self.machine_labels_placeholder: machine_labels, 
-			self.ret_placeholder: np.zeros_like(machine_labels,dtype=np.float32), 
-			self.visited_placeholder: np.zeros_like(machine_labels,dtype=np.int32)})
+			self.ret_placeholder: ret, 
+			self.visited_placeholder: visited})
 		
 		for sample in sample_generator:
 			_= self.sess.run(self.it, feed_dict={self.focus_inpt: sample})
