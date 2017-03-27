@@ -1,4 +1,6 @@
 *.pyc
 *.h5
 *.json
+*.html
+*.pickle
 cruft
