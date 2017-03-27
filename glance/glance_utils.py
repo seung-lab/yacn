@@ -2,6 +2,27 @@ import h5py
 import numpy as np
 from multiprocessing import Process, Queue
 import os
+import misc_utils
+import uuid
+
+class FileArray(object):
+	def __init__(self, A):
+		self.filename = "/tmp/" + str(uuid.uuid4().hex) + ".h5"
+		misc_utils.h5write(self.filename, A)
+	
+	def get(self):
+		print("reading from " + self.filename)
+		return misc_utils.h5read(self.filename,force=True)
+def unpack(A):
+	if type(A) == FileArray:
+		return A.get()
+	else:
+		return A
+def pack(A):
+	if type(A) == np.ndarray:
+		return FileArray(A)
+	else:
+		return A
 
 def visualize_colour(viewer,filename):
 	"""
@@ -31,7 +52,7 @@ def run_trace(q1,q2):
 	os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 	import sys
-	sys.path.insert(0, os.path.expanduser("~/nets"))
+	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
 	import sparse_vector_labels_inference
 	#import pythonzenity
 	sparse_vector_labels_inference.main_model.restore("~/experiments/sparse_vector_labels/057-23-23-56-test/model999800.ckpt")
@@ -51,7 +72,7 @@ def run_discrim(q1,q2):
 	import os
 	os.environ["CUDA_VISIBLE_DEVICES"]="1"
 	import sys
-	sys.path.insert(0, os.path.expanduser("~/nets"))
+	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
 	import discriminate2_online_inference
 	discriminate2_online_inference.main_model.restore("~/checkpoint/discriminate2/model887401.ckpt")
 	print("ready")
@@ -61,7 +82,25 @@ def run_discrim(q1,q2):
 			#print("waiting")
 			mask = q1.get()[0]
 			#print("received")
-			q2.put(discriminate2_online_inference.main_model.test(mask))
+			q2.put(pack(discriminate2_online_inference.main_model.test(mask)))
+			#print("done")
+		except Exception as e:
+			print(e)
+
+def run_recompute_discrim(q1,q2):
+	import os
+	os.environ["CUDA_VISIBLE_DEVICES"]="1"
+	import sys
+	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
+	import discriminate2_inference
+	discriminate2_inference.__init__([1,256,1024,1024,1],checkpoint="~/seung1001_experiments/discriminate2/081-19-27-58-test/model362700.ckpt")
+	while True:
+		try:
+			#print("waiting")
+			seg, samples, err, visited = map(unpack,q1.get())
+			X,Y,Z=np.shape(seg)
+			#print("received")
+			q2.put(np.reshape(discriminate2_inference.main_model.inference(seg,samples, visited=visited,ret=err), [X,Y,Z]))
 			#print("done")
 		except Exception as e:
 			print(e)

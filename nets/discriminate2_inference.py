@@ -108,6 +108,12 @@ class DiscrimModel(Model):
 	#plan: assign to each object the magnitude of the max value of the error detector in the window.
 	#vol should be machine_labels of size [1,X,Y,Z,1]
 	def inference(self, machine_labels, sample_generator, ret=None, visited=None):
+		if type(sample_generator) == np.ndarray:
+			sample_generator = random_sample_generator(sample_generator)
+		machine_labels = dataset.prep("machine_labels", machine_labels)
+		ret = dataset.prep("errors", ret)
+		visited = dataset.prep("machine_labels", visited)
+
 		if ret is None:
 			ret = np.zeros_like(machine_labels, dtype=np.float32)
 		if visited is None:

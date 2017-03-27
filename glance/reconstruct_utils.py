@@ -10,7 +10,7 @@ import sparse_vector_labels_inference
 sparse_vector_labels_inference.main_model.restore("~/experiments/sparse_vector_labels/trained_057-23-23-56-test/model999800.ckpt")
 """
 
-#discrim_daemon = glance_utils.ComputeDaemon(glance_utils.run_discrim)
+discrim_daemon = glance_utils.ComputeDaemon(glance_utils.run_recompute_discrim)
 trace_daemon = glance_utils.ComputeDaemon(glance_utils.run_trace)
 
 def flood_fill(image, mask):
