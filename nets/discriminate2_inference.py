@@ -86,7 +86,7 @@ class DiscrimModel(Model):
 						]):
 					return tf.no_op()
 
-			self.it = tf.cond(self.visited[focus[0],focus[1],focus[2],focus[3],focus[4]] > 3,
+			self.it = tf.cond(self.visited[focus[0],focus[1],focus[2],focus[3],focus[4]] > 4,
 					lambda: tf.no_op(),
 					f)
 
@@ -108,22 +108,23 @@ class DiscrimModel(Model):
 	#plan: assign to each object the magnitude of the max value of the error detector in the window.
 	#vol should be machine_labels of size [1,X,Y,Z,1]
 	def inference(self, machine_labels, sample_generator, ret=None, visited=None):
+		if ret is None:
+			ret = np.zeros_like(machine_labels, dtype=np.float32)
+		if visited is None:
+			visited = np.zeros_like(machine_labels, dtype=np.int32)
 		if type(sample_generator) == np.ndarray:
 			sample_generator = random_sample_generator(sample_generator)
 		machine_labels = dataset.prep("machine_labels", machine_labels)
 		ret = dataset.prep("errors", ret)
 		visited = dataset.prep("machine_labels", visited)
 
-		if ret is None:
-			ret = np.zeros_like(machine_labels, dtype=np.float32)
-		if visited is None:
-			visited = np.zeros_like(machine_labels, dtype=np.int32)
 		self.sess.run(self.full_array_initializer, feed_dict={
 			self.machine_labels_placeholder: machine_labels, 
 			self.ret_placeholder: ret, 
 			self.visited_placeholder: visited})
 		
-		for sample in sample_generator:
+		for i,sample in enumerate(sample_generator):
+			print(i)
 			_= self.sess.run(self.it, feed_dict={self.focus_inpt: sample})
 
 		return self.sess.run(self.ret)
@@ -137,7 +138,6 @@ def random_sample_generator(samples,k=None):
 	if k is None:
 		k=N
 	for i in random.sample(range(N),k):
-		print(i)
 		yield samples[i,:]
 
 def __init__(full_size, checkpoint=None):
@@ -163,6 +163,7 @@ if __name__ == '__main__':
 			[
 				#os.path.expanduser("~/seungmount/research/ranl/error_detector/ds/"),
 				os.path.expanduser("~/mydatasets/3_3_1/ds/"),
+				#os.path.expanduser("~/mydatasets/golden/ds/"),
 			],
 			{
 				"machine_labels": "mean_agg_tr.h5",

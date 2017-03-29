@@ -70,7 +70,6 @@ class VectorLabelModel(Model):
 		self.iteration_type=tf.placeholder(tf.int64, shape=())
 		self.image_feed =tf.placeholder(tf.float32, shape=self.padded_patch_size)
 		self.mask_feed = tf.placeholder(tf.float32, shape=self.padded_patch_size)
-		self.default_train_dict={self.iteration_type:0}
 		vector_labels_test = forward(tf.concat([self.image_feed, self.mask_feed],4))
 		self.vector_labels_test = vector_labels_test
 		self.expansion_test = affinity(extract_central(vector_labels_test), vector_labels_test)
@@ -170,9 +169,6 @@ class VectorLabelModel(Model):
 		image = dataset.prep("image",image)
 		mask = dataset.prep("image",mask)
 		return self.sess.run(self.expansion_test, feed_dict={self.iteration_type: 1, self.image_feed: image, self.mask_feed: mask})
-
-	def train_feed_dict(self):
-		return self.default_train_dict
 
 if __name__ == '__main__':
 	TRAIN = dataset.MultiDataset(
