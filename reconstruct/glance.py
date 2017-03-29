@@ -11,23 +11,18 @@ import h5py
 
 import neuroglancer
 import numpy as np
-import pandas as pd
-from sets import Set
 import os.path
 
-from multiprocessing import Process, Queue
-import glance_utils
-import regiongraphs
 from regiongraphs import *
+from reconstruct import *
+from misc_utils import *
 
 import scipy.ndimage.measurements as measurements
 
 
-patch_size=[318,318,33]
-resolution=[4,4,40]
-full_size=[2048,2048,256]
-#discrim_daemon = glance_utils.ComputeDaemon(glance_utils.run_discrim)
-#trace_daemon = glance_utils.ComputeDaemon(glance_utils.run_trace)
+patch_size=[33,318,318]
+resolution=[40,4,4]
+full_size=[256,2048,2048]
 
 neuroglancer.server.debug=False
 neuroglancer.server.global_server_args['bind_address']='seungworkstation1000.princeton.edu'
@@ -35,163 +30,108 @@ neuroglancer.server.global_server_args['bind_port']=80
 neuroglancer.server.global_bind_port2=9100
 neuroglancer.volume.ENABLE_MESHES=True
 
-files = []
+def get_focus():
+	return map(int, rev(viewer.state['navigation']['pose']['position']['voxelCoordinates']))
 
-def h5read(filename):
-	try:
-		f=h5py.File(filename,'r')
-		arr = f['main']
-		files.append(f)
-		return arr
-	except IOError:
-		print(filename+' not found')
-
-def get_current_region():
-	pos = map(int,viewer.state['navigation']['pose']['position']['voxelCoordinates'])
-	return pos, get_region(pos)
-
-def get_region(pos):
-	assert all([patch_size[i]/2 < pos[i] < (full_size[i] - patch_size[i]/2) for i in range(3)])
-	return tuple([slice(pos[i]-patch_size[i]/2,pos[i]+patch_size[i]-patch_size[i]/2) for i in range(3)])
-
-def get_selected_set():
-	s=Set(map(int,viewer.state['layers']['raw_labels']['segments']))
+def get_selection():
+	s=set(map(int,viewer.state['layers']['raw_labels']['segments']))
 	return s
 
-def rev_tuple(x):
-	return tuple(reversed(x))
+def set_selection(segments,append=False):
+	segments = map(int, expand_list(V.G, segments))
+	if append:
+		segments = segments + list(get_selection())
+	segments = sorted(list(set(segments)))
+		
+	viewer.state['layers']['raw_labels']['segments'] = segments
+	print(viewer.state['layers']['raw_labels']['segments'])
+	viewer.broadcast()
+
+def set_focus(pos):
+	global cutout
+	cutout = cutout=SubVolume(V,get_region(pos))
+	cutout.pos=pos
+	draw_bbox(pos)
+	viewer.state['navigation']['pose']['position']['voxelCoordinates'] = rev(pos)
+	viewer.broadcast()
+
+def rev(x):
+	if type(x) == tuple:
+		return tuple(reversed(x))
+	else:
+		return list(reversed(x))
 
 counter=0
 
 def trace():
-	pos,region = get_current_region()
-	s=get_selected_set()
-	labels_cutout = np.copy(raw_labels[rev_tuple(region)])
-	image_cutout = np.copy(image[rev_tuple(region)])
-	mask=glance_utils.indicator(labels_cutout,s)
-	traced = trace_daemon(image_cutout, mask)
+	s=get_selection()
+	mask = indicator(cutout.raw_labels,s)
+	cutout.traced = reconstruct_utils.trace_daemon(cutout.image, mask)
 
 	global counter
 	counter += 1
-	viewer.add(data=traced, volume_type='image', name='trace'+str(counter), voxel_size=resolution, offset=[(pos[i]-patch_size[i]/2)*resolution[i] for i in xrange(3)])
+	viewer.add(data=cutout.traced, volume_type='image', name='trace'+str(counter), voxel_size=rev(resolution), offset=[(cutout.pos[i]-patch_size[i]/2)*resolution[i] for i in xrange(3)])
 	l=viewer.layers[-1]
 	viewer.register_volume(l.volume)
 	viewer.state['layers']['trace'+str(counter)]=l.get_layer_spec(viewer.get_server_url())
 	viewer.broadcast()
 	print("done")
-	return traced, labels_cutout
 
-def commit(traced, labels_cutout, low_threshold=0.3, high_threshold=0.7):
-	unique_list = np.unique(labels_cutout)
-	traced_list = measurements.mean(traced, labels_cutout, unique_list)
-	print(zip(traced_list, unique_list))
-	positive = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]>high_threshold]
-	negative = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]<low_threshold]
-	positive = filter(lambda x: x != 0, positive)
-	negative = filter(lambda x: x != 0, negative)
-	print(positive)
-	print(negative)
-	regiongraphs.add_clique(G,positive)
-	regiongraphs.delete_bipartite(G,positive,negative)
-
-
-def discrim():
-	pos, region = get_current_region()
-	s=get_selected_set()
-	labels_cutout = np.copy(raw_labels[rev_tuple(region)])
-	image_cutout = np.copy(image[rev_tuple(region)])
-	mask = glance_utils.indicator(labels_cutout,s)
-	
-	return discrim_daemon(mask)
-
-def draw_bbox(current_position):
+def draw_bbox(position):
+	position = rev(position)
+	rps = rev(patch_size)
 	tmp=[]
 	for i in [-1,1]:
 		for j in [-1,1]:
 			for k in [-1,1]:
 				if i == - 1:
-					tmp.append(map(operator.add,current_position, [i*patch_size[0]/2, j*patch_size[1]/2, k*patch_size[2]/2]))
-					tmp.append(map(operator.add,current_position, [-i*patch_size[0]/2, j*patch_size[1]/2, k*patch_size[2]/2]))
+					tmp.append(map(operator.add,position, [i*rps[0]/2, j*rps[1]/2, k*rps[2]/2]))
+					tmp.append(map(operator.add,position, [-i*rps[0]/2, j*rps[1]/2, k*rps[2]/2]))
 				if j == - 1:
-					tmp.append(map(operator.add,current_position, [i*patch_size[0]/2, j*patch_size[1]/2, k*patch_size[2]/2]))
-					tmp.append(map(operator.add,current_position, [i*patch_size[0]/2, -j*patch_size[1]/2, k*patch_size[2]/2]))
+					tmp.append(map(operator.add,position, [i*rps[0]/2, j*rps[1]/2, k*rps[2]/2]))
+					tmp.append(map(operator.add,position, [i*rps[0]/2, -j*rps[1]/2, k*rps[2]/2]))
 				if k == - 1:
-					tmp.append(map(operator.add,current_position, [i*patch_size[0]/2, j*patch_size[1]/2, k*patch_size[2]/2]))
-					tmp.append(map(operator.add,current_position, [i*patch_size[0]/2, j*patch_size[1]/2, -k*patch_size[2]/2]))
+					tmp.append(map(operator.add,position, [i*rps[0]/2, j*rps[1]/2, k*rps[2]/2]))
+					tmp.append(map(operator.add,position, [i*rps[0]/2, j*rps[1]/2, -k*rps[2]/2]))
 
 	viewer.state['layers']['bbox']['points'] = tmp
 	viewer.broadcast()
 
-def load_neighbours(threshold=0.1):
-	pos, region = get_current_region()
-	x,y,z=pos
-	current_segments = [int(raw_labels[z,y,x])]
+def select_neighbours(threshold=0.5):
+	set_selection(cutout.local_errors(threshold=threshold), append=True)
 
-	labels_cutout = np.copy(raw_labels[rev_tuple(region)])
-	errors_cutout = np.copy(errors[rev_tuple(region)])
-
-
-	unique_list = np.unique(labels_cutout)
-	max_error_list = measurements.maximum(errors_cutout,labels_cutout, unique_list)
-	additional_segments = [unique_list[i] for i in xrange(len(unique_list)) if max_error_list[i]>threshold or max_error_list[i]==0.0]
-	additional_segments = filter(lambda x: x != 0, additional_segments)
-
-	print(current_segments + additional_segments)
-
-	viewer.state['layers']['raw_labels']['segments'] = sorted(map(int,expand_list(G,current_segments + additional_segments)))
-	viewer.broadcast()
-
-def perturb(sample,radius):
-	#sample should be in xyz order
-	region = tuple([slice(x-y,x+y+1,None) for x,y in zip(sample,radius)])
-	print(region)
-	mask = (raw_labels[rev_tuple(region)]==raw_labels[rev_tuple(tuple(sample))]).astype(np.int32)
-
-	patch = np.minimum(affinities[(0,)+rev_tuple(region)], mask)
-	tmp=np.unravel_index(patch.argmax(),patch.shape)
-	return [t+x-y for t,x,y in zip(reversed(tmp),sample,radius)]
-
-def perturb_position(radius=(15,15,1)):
-	pos,current_region=get_current_region()
-	set_location(perturb(pos,radius=radius))
+def perturb_position(radius=(1,15,15)):
+	pos=get_focus()
+	new_pos = perturb(get_focus(),V,radius=radius)
+	set_focus(new_pos)
 
 def load(ind=None,append=False):
 	if ind is None:
-		pos,region = get_current_region()
-		x,y,z=pos
+		pos = get_focus()
+		z,y,x = pos
 	elif type(ind)==int:
 		global current_index
 		current_index=ind
-		z,y,x = samples[ind,:]
-		pos = [x,y,z]
+		z,y,x = V.samples[ind,:]
+		pos = [z,y,x]
 	else:
-		x,y,z=ind
-	current_segments = [int(raw_labels[z,y,x])]
-	if append:
-		current_segments = current_segments + map(int, viewer.state['layers']['raw_labels']['segments'])
-	set_selection(current_segments)
-	set_location(pos)
-	draw_bbox(pos)
+		pos=ind
+		z,y,x=pos
 
-def set_selection(segments):
-	viewer.state['layers']['raw_labels']['segments'] = sorted(list(set(map(int,expand_list(G,segments)))))
-	print(viewer.state['layers']['raw_labels']['segments'])
-	viewer.broadcast()
+	set_selection([int(V.raw_labels[z,y,x])], append=append)
+	set_focus(pos)
 
-def set_location(pos):
-	viewer.state['navigation']['pose']['position']['voxelCoordinates'] = pos
-	viewer.broadcast()
 
 def auto_trace():
 	perturb_position()
-	raw_input()
-	load_neighbours(threshold=0.5)
-	raw_input()
-	t=trace()
-	raw_input()
-	commit(*t)
-	raw_input()
-	load()
+	raw_input("press enter to continue")
+	select_neighbours(threshold=0.5)
+	raw_input("press enter to continue")
+	trace()
+	raw_input("press enter to continue")
+	commit(cutout)
+	raw_input("press enter to continue")
+	load(cutout.pos)
 
 current_index = 0
 def next_index(jump=1):
@@ -204,37 +144,31 @@ neuroglancer.set_static_content_source(url='http://seungworkstation1000.princeto
 #basename = sys.argv[1]
 basename=os.path.expanduser("~/mydatasets/3_3_1/")
 print("loading files...")
-with h5py.File(os.path.join(basename,"samples.h5"),'r') as f:
-	#careful! These are in z,y,x order
-	samples = f['main'][:]
+vertices = h5read(os.path.join(basename, "vertices.h5"), force=True)
+edges = h5read(os.path.join(basename, "edges.h5"), force=True)
 
-with h5py.File(os.path.join(basename,"vertices_revised.h5"),'r') as f:
-	vertices = f['main'][:]
+V = Volume(basename,
+		{"image": "image.h5",
+		 "errors": "errors3.h5",
+		 "raw_labels": "raw.h5",
+		 "affinities": "aff.h5",
+		 "machine_labels": "mean_agg_tr.h5",
+		 "human_labels": "proofread.h5",
+		 "changed": np.zeros(full_size, dtype=np.int32),
+		 "valid": set([]),
+		 "G": regiongraphs.make_graph(vertices,edges),
+		 "samples": h5read(os.path.join(basename, "samples.h5"), force=True),
+		 "ds_samples": h5read(os.path.join(basename, "ds/samples.h5"), force=True)
+		 })
+V.errors = V.errors[:]
 
-with h5py.File(os.path.join(basename,"edges_revised.h5"),'r') as f:
-	edges= f['main'][:]
+print("done")
 
-image = h5read(os.path.join(basename,"image.h5"))[:]
-errors = h5read(os.path.join(basename,"errors3.h5"))[:]
-raw_labels = h5read(os.path.join(basename,"raw.h5"))[:]
-affinities = h5read(os.path.join(basename,"aff.h5"))[:]
-#human_labels = h5read(os.path.join(basename,"proofread.h5"))
-#machine_labels= h5read(os.path.join(basename,"mean_agg_tr.h5"))
-
-
-G=regiongraphs.make_graph(vertices,edges)
-#graph_server_url=graph_server.start_server(G)
+#graph_server_url=graph_server.start_server(V.G)
 #graph_server_url="http://localhost:8088"
 
-print("...done")
-
 print("sorting samples...")
-nsamples = samples.shape[0]
-weights = errors[[samples[:,0],samples[:,1],samples[:,2]]]
-
-perm = np.argsort(weights)[::-1]
-samples=samples[perm,:]
-weights=weights[perm]
+sort_samples(V)
 print("...done")
 
 viewer = neuroglancer.Viewer()
@@ -243,14 +177,14 @@ def on_state_changed(state):
 		print(state)
 
 viewer.on_state_changed = on_state_changed
-#viewer.add(data=np.array([[[0]]],dtype=np.uint8), volume_type='image', name='dummy', voxel_size=resolution)
-viewer.add(data=image, volume_type='image', name='image', voxel_size=resolution)
-viewer.add(data=errors, volume_type='image', name='errors', voxel_size=resolution)
-#viewer.add(data=machine_labels, volume_type='segmentation', name='machine_labels', voxel_size=resolution)
-viewer.add(data=raw_labels, volume_type='segmentation', name='raw_labels', voxel_size=resolution)
-#viewer.add(data=human_labels, volume_type='segmentation', name='human_labels', voxel_size=resolution)
+#viewer.add(data=np.array([[[0]]],dtype=np.uint8), volume_type='image', name='dummy', voxel_size=rev(resolution))
+viewer.add(data=V.image, volume_type='image', name='image', voxel_size=rev(resolution))
+viewer.add(data=V.errors, volume_type='image', name='errors', voxel_size=rev(resolution))
+#viewer.add(data=machine_labels, volume_type='segmentation', name='machine_labels', voxel_size=rev(resolution))
+viewer.add(data=V.raw_labels, volume_type='segmentation', name='raw_labels', voxel_size=rev(resolution))
+#viewer.add(data=human_labels, volume_type='segmentation', name='human_labels', voxel_size=rev(resolution))
 viewer.add(data=[], volume_type='synapse', name="bbox")
-#viewer.add(data=np.array([[[0]]],dtype=np.uint8), volume_type='image', name='dummy', voxel_size=resolution)
+#viewer.add(data=np.array([[[0]]],dtype=np.uint8), volume_type='image', name='dummy', voxel_size=rev(resolution))
 
 print('open your browser at:')
 print(viewer.__str__())

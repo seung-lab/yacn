@@ -37,7 +37,7 @@ def pack(A):
 
 def run_trace(q1,q2):
 	import os
-	os.environ["CUDA_VISIBLE_DEVICES"]="0"
+	os.environ["CUDA_VISIBLE_DEVICES"]=""
 
 	import sys
 	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
@@ -58,7 +58,7 @@ def run_trace(q1,q2):
 
 def run_recompute_discrim(q1,q2):
 	import os
-	os.environ["CUDA_VISIBLE_DEVICES"]="1"
+	os.environ["CUDA_VISIBLE_DEVICES"]=""
 	import sys
 	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
 	import discriminate2_inference

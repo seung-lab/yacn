@@ -81,13 +81,13 @@ def analyze(traced, cutout,example_id):
 	datalist=datalist.append(pd.DataFrame([[guess[i],truth[i],volumes[i],args[1][i],example_id] for i in xrange(len(args[1]))],columns=["guess","truth","volume","seg_id","example_id"]))
 """
 
-def commit(traced, cutout, low_threshold=0.2, high_threshold=0.8):
+def commit(cutout, low_threshold=0.2, high_threshold=0.8, close = lambda x,y: True):
 	V=cutout.parent
 	#unique_list = cutout.unique_list
 	unique_list = cutout.central_unique_list
 
 
-	traced_list = measurements.mean(traced, cutout.raw_labels, unique_list)
+	traced_list = measurements.mean(cutout.traced, cutout.raw_labels, unique_list)
 	
 	if not all([x < low_threshold or x > high_threshold for x in traced_list]):
 		raise ReconstructionException("not confident")
@@ -105,7 +105,6 @@ def commit(traced, cutout, low_threshold=0.2, high_threshold=0.8):
 	#print(positive)
 	#print(negative)
 	original_components = list(nx.connected_components(V.G.subgraph(unique_list)))
-	global close
 	regiongraphs.add_clique(V.G,positive, guard=close)
 	regiongraphs.delete_bipartite(V.G,positive,negative)
 	new_components = list(nx.connected_components(V.G.subgraph(unique_list)))
@@ -162,7 +161,7 @@ def recompute_errors(V, epoch=None):
 	V.errors[:,::2,::2] = sub_new_errors
 
 	h5write(os.path.join(basename,name+"_errors.h5"),sub_new_errors)
-	V.changed = np.zeros_like(V.machine_labels, dtype=np.int32)
+	V.changed = np.zeros(full_size, dtype=np.int32)
 	print("done")
 
 def sort_samples(V):
@@ -188,11 +187,11 @@ if __name__ == "__main__":
 			 "errors": "errors4.h5",
 			 "raw_labels": "raw.h5",
 			 "affinities": "aff.h5",
-			 "machine_labels": "mean_agg_tr.h5",
+			 #"machine_labels": "mean_agg_tr.h5",
 			 "changed": np.zeros(full_size, dtype=np.int32),
 			 "valid": set([]),
 			 "G": regiongraphs.make_graph(vertices,edges),
-			 "samples": h5read(os.path.join(basename, "samples.h5"), force=True)
+			 "samples": h5read(os.path.join(basename, "samples.h5"), force=True),
 			 "ds_samples": h5read(os.path.join(basename, "ds/samples.h5"), force=True)
 			 })
 	V.errors = V.errors[:]
@@ -237,7 +236,7 @@ if __name__ == "__main__":
 				toc()
 
 				tic()
-				t = (reconstruct_utils.trace_daemon(cutout.image, mask_cutout), cutout)
+				cutout.traced = (reconstruct_utils.trace_daemon(cutout.image, mask_cutout), cutout)
 				toc()
 
 				"""
@@ -247,7 +246,7 @@ if __name__ == "__main__":
 				"""
 
 				tic()
-				commit(*t,low_threshold=0.15,high_threshold=0.85)
+				commit(cutout, low_threshold=0.15,high_threshold=0.85,close=close)
 				toc()
 
 				"""
