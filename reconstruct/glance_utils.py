@@ -55,7 +55,7 @@ def run_trace(q1,q2):
 	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
 	import sparse_vector_labels_inference
 	#import pythonzenity
-	sparse_vector_labels_inference.main_model.restore("~/experiments/sparse_vector_labels/057-23-23-56-test/model999800.ckpt")
+	sparse_vector_labels_inference.main_model.restore("~/checkpoint/sparse_vector_labels/057-23-23-56-test/model999800.ckpt")
 	print("ready")
 	while True:
 		try:
@@ -68,32 +68,13 @@ def run_trace(q1,q2):
 		except Exception as e:
 			print(e)
 
-def run_discrim(q1,q2):
-	import os
-	os.environ["CUDA_VISIBLE_DEVICES"]="1"
-	import sys
-	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
-	import discriminate2_online_inference
-	discriminate2_online_inference.main_model.restore("~/checkpoint/discriminate2/model887401.ckpt")
-	print("ready")
-
-	while True:
-		try:
-			#print("waiting")
-			mask = q1.get()[0]
-			#print("received")
-			q2.put(pack(discriminate2_online_inference.main_model.test(mask)))
-			#print("done")
-		except Exception as e:
-			print(e)
-
 def run_recompute_discrim(q1,q2):
 	import os
 	os.environ["CUDA_VISIBLE_DEVICES"]="1"
 	import sys
 	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
 	import discriminate2_inference
-	discriminate2_inference.__init__([1,256,1024,1024,1],checkpoint="~/seung1001_experiments/discriminate2/081-19-27-58-test/model362700.ckpt")
+	discriminate2_inference.__init__([1,256,1024,1024,1],checkpoint="~/checkpoint/discriminate2/081-19-27-58-test/model406800.ckpt")
 	while True:
 		try:
 			#print("waiting")
