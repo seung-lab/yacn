@@ -49,6 +49,12 @@ class RegionCutout():
 		if not hasattr(self, 'unique_list'):
 			self.unique_list = filter(lambda x: x!=0, np.unique(self.get_raw_labels()))
 		return self.unique_list
+	def get_central_unique_list(self):
+		if not hasattr(self, 'central_unique_list'):
+			subregion = tuple([slice(x/3,x-x/3) for x in patch_size])
+			self.central_unique_list = filter(lambda x: x!=0, np.unique(self.get_raw_labels()[subregion]))
+		return self.central_unique_list
+
 	def get_subgraph(self):
 		if not hasattr(self, 'subgraph'):
 			global G
@@ -69,6 +75,7 @@ class RegionCutout():
 
 	def local_errors(self, threshold=0.5):
 		unique_list = self.get_unique_list()
+		#unique_list = self.get_central_unique_list()
 		max_error_list = measurements.maximum(self.get_errors(),self.get_raw_labels(), unique_list)
 		additional_segments = [unique_list[i] for i in xrange(len(unique_list)) if max_error_list[i]>threshold or max_error_list[i]==0.0]
 		additional_segments = filter(lambda x: x != 0, additional_segments)
@@ -92,8 +99,11 @@ def analyze(traced, cutout,example_id):
 	datalist=datalist.append(pd.DataFrame([[guess[i],truth[i],volumes[i],args[1][i],example_id] for i in xrange(len(args[1]))],columns=["guess","truth","volume","seg_id","example_id"]))
 
 def commit(traced, cutout, low_threshold=0.2, high_threshold=0.8):
-	unique_list = cutout.get_unique_list()
-	traced_list = measurements.mean(traced, cutout.get_raw_labels(), cutout.get_unique_list())
+	#unique_list = cutout.get_unique_list()
+	unique_list = cutout.get_central_unique_list()
+
+
+	traced_list = measurements.mean(traced, cutout.get_raw_labels(), unique_list)
 	
 	if not all([x < low_threshold or x > high_threshold for x in traced_list]):
 		raise ReconstructionException("not confident")
@@ -102,10 +112,17 @@ def commit(traced, cutout, low_threshold=0.2, high_threshold=0.8):
 	positive = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]>high_threshold]
 	negative = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]<low_threshold]
 
+	for l in positive:
+		if l in valid:
+			raise ReconstructionException("blocking merge to valid segment")
+
+	if 2 in expand_list(G,positive):
+		raise ReconstructionException("blocking merge to glia")
 	#print(positive)
 	#print(negative)
 	original_components = list(nx.connected_components(G.subgraph(unique_list)))
-	regiongraphs.add_clique(G,positive)
+	global close
+	regiongraphs.add_clique(G,positive, guard=close)
 	regiongraphs.delete_bipartite(G,positive,negative)
 	new_components = list(nx.connected_components(G.subgraph(unique_list)))
 	changed_list = set(unique_list) - set.union(*([set([])]+[s for s in original_components if s in new_components]))
@@ -114,7 +131,6 @@ def commit(traced, cutout, low_threshold=0.2, high_threshold=0.8):
 
 def perturb(sample,radius=(1,15,15)):
 	region = tuple([slice(x-y,x+y+1,None) for x,y in zip(sample,radius)])
-	#print(region)
 	mask = (raw_labels[region]==raw_labels[tuple(sample)]).astype(np.int32)
 
 	patch = np.minimum(affinities[(0,)+region], mask)
@@ -139,14 +155,26 @@ def recompute_errors(epoch=None):
 	global errors
 	global raw_labels
 	global samples
+	global G
+
+	if epoch is None:
+		name = "epoch"
+	else:
+		name = "epoch" + str(epoch)
+	h5write(os.path.join(basename,name+"_vertices.h5"),np.array(G.nodes()))
+	h5write(os.path.join(basename,name+"_edges.h5"),np.array(G.edges()))
+	h5write(os.path.join(basename,name+"_changed.h5"),changed[:,::2,::2])
+
+	print("flattening current seg")
+	sub_raw_labels = raw_labels[:,::2,::2]
+	sub_machine_labels = flatten(G, sub_raw_labels)
+	h5write(os.path.join(basename,name+"_machine_labels.h5"),sub_machine_labels)
+
 	print("preparing to recompute errors")
 	sub_errors = np.minimum(errors[:,::2,::2], 1-changed[:,::2,::2])
 	sub_visited = 4*(1 - changed[:, ::2, ::2])
-	sub_raw_labels = raw_labels[:,::2,::2]
 	sub_samples = np.array(filter(lambda i: sub_visited[i[0],i[1],i[2]]==0, ds_samples))
 	print(sub_samples.shape)
-	print("flattening current seg")
-	sub_machine_labels = flatten(G, sub_raw_labels)
 
 	print("recomputing errors")
 	sub_new_errors = glance_utils.unpack(reconstruct_utils.discrim_daemon(*(map(glance_utils.pack,[sub_machine_labels, sub_samples, sub_errors, sub_visited]))))
@@ -154,24 +182,24 @@ def recompute_errors(epoch=None):
 	errors = np.zeros_like(errors)
 	errors[:,::2,::2] = sub_new_errors
 
-	print("logging")
-	if epoch is None:
-		name = "epoch"
-	else:
-		name = "epoch" + str(epoch)
 	h5write(os.path.join(basename,name+"_errors.h5"),sub_new_errors)
-	h5write(os.path.join(basename,name+"_changed.h5"),changed[:,::2,::2])
-	h5write(os.path.join(basename,name+"_machine_labels.h5"),sub_machine_labels)
+	changed = np.zeros_like(machine_labels, dtype=np.int32)
+	print("done")
 
 def sort_samples():
 	global nsamples
 	global weights
+	global samples
 	nsamples = samples.shape[0]
 	weights = errors[[samples[:,0],samples[:,1],samples[:,2]]]
 
+	perm = np.argsort(weights)[::-1]
+	samples=samples[perm,:]
+	weights=weights[perm]
+
 
 #basename = sys.argv[1]
-basename=os.path.expanduser("~/mydatasets/3_3_1/")
+basename=os.path.expanduser("~/mydatasets/golden/")
 print("loading files...")
 with h5py.File(os.path.join(basename,"samples.h5"),'r') as f:
 	samples = f['main'][:]
@@ -186,12 +214,13 @@ with h5py.File(os.path.join(basename,"edges.h5"),'r') as f:
 	edges= f['main'][:]
 
 image = h5read(os.path.join(basename,"image.h5"))
-errors = h5read(os.path.join(basename,"errors3.h5"))[:]
+errors = h5read(os.path.join(basename,"errors4.h5"))[:]
 raw_labels = h5read(os.path.join(basename,"raw.h5"))
 affinities = h5read(os.path.join(basename,"aff.h5"))
-human_labels = h5read(os.path.join(basename,"proofread.h5"))
+#human_labels = h5read(os.path.join(basename,"proofread.h5"))
 machine_labels= h5read(os.path.join(basename,"mean_agg_tr.h5"))
 changed = np.zeros_like(machine_labels, dtype=np.int32)
+valid = set([])
 
 print("done")
 
@@ -199,13 +228,11 @@ patch_size=[33,318,318]
 full_size=[256,2048,2048]
 
 G=regiongraphs.make_graph(vertices,edges)
+#close=misc_utils.compute_fullgraph(raw_labels[:,::2,::2], resolution=[8,8,40], r=100)
+close = lambda x,y: True
 
 print("sorting samples...")
 sort_samples()
-
-perm = np.argsort(weights)[::-1]
-samples=samples[perm,:]
-weights=weights[perm]
 print("done")
 
 for epoch in xrange(3):
@@ -217,7 +244,8 @@ for epoch in xrange(3):
 			pos=perturb(samples[i,:])
 			region = get_region(pos)
 			cutout=RegionCutout(region)
-			if (np.max(cutout.get_changed()) > 0):
+			#if (np.max(cutout.get_changed()) > 0):
+			if (changed[tuple(pos)] > 0):
 				raise ReconstructionException("Already changed here")
 			toc()
 
@@ -231,7 +259,7 @@ for epoch in xrange(3):
 
 			
 			tic()
-			current_segments = expand_list(cutout.get_subgraph(),[raw_labels[tuple(pos)]]+cutout.local_errors(threshold=0.7))
+			current_segments = expand_list(cutout.get_subgraph(),[raw_labels[tuple(pos)]]+cutout.local_errors(threshold=0.5))
 			toc()
 
 			tic()
@@ -249,7 +277,7 @@ for epoch in xrange(3):
 			"""
 
 			tic()
-			commit(*t,low_threshold=0.25,high_threshold=0.75)
+			commit(*t,low_threshold=0.15,high_threshold=0.85)
 			toc()
 
 			"""
@@ -267,5 +295,3 @@ for epoch in xrange(3):
 	sort_samples()
 	
 datalist.to_pickle("tmp.pickle")
-h5write(os.path.join(basename,"vertices_revised3.h5"),np.array(G.nodes()))
-h5write(os.path.join(basename,"edges_revised3.h5"),np.array(G.edges()))

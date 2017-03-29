@@ -4,19 +4,14 @@ def make_graph(vertices, edges):
 	G=nx.Graph()
 	G.add_nodes_from(vertices)
 	G.add_edges_from(edges)
-	"""
-	for i in xrange(len(vertices)):
-		G.add_node(vertices[i])
-	for i in xrange(edges.shape[0]):
-		G.add_edge(edges[i,0],edges[i,1])
-	"""
 	return G
 
 
-def add_clique(G, vertices):
+def add_clique(G, vertices, guard = lambda x,y: True):
 	for i in xrange(len(vertices)):
 		for j in xrange(i,len(vertices)):
-			G.add_edge(vertices[i],vertices[j])
+			if guard(vertices[i],vertices[j]):
+				G.add_edge(vertices[i],vertices[j])
 	
 def delete_bipartite(G, vertices1, vertices2):
 	for v1 in vertices1:

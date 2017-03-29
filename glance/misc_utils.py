@@ -3,6 +3,8 @@ from __future__ import print_function
 import time
 import h5py
 import numpy as np
+import scipy.spatial as sp
+import numpy as np
 files = []
 def h5read(filename, force=False):
 	try:
@@ -29,7 +31,32 @@ def tic():
 
 def toc(msg="toc"):
 	elapsed = time.time() - tics.pop()
-	print("\t"*len(tics) + msg + " " + str(elapsed))
+	#print("\t"*len(tics) + msg + " " + str(elapsed))
 
 def indicator(A, s):
 	return np.reshape(np.in1d(A,np.array(list(s))).astype(np.int32),np.shape(A))
+
+
+def compute_fullgraph(raw, resolution=np.array([4,4,40]), r=100):
+	point_lists = [[] for i in xrange(np.max(raw)+1)]
+	X,Y,Z = raw.shape
+
+	print("computing fullgraph")
+	for i in xrange(X):
+		tic()
+		for j in xrange(Y):
+			for k in xrange(Z):
+				point_lists[raw[i,j,k]].append(np.array([i,j,k])*resolution)
+		toc("toc: point lists generated")
+
+	println("accumulated points")
+
+	trees = [sp.cKDTree(transpose(flatten(points))) for points in point_lists]
+
+	print("generated trees")
+
+	def close(x,y):
+		t1=trees[i]
+		t2=trees[j]
+		return t1[:count_neighbors](t2,r) > 0
+	return close
