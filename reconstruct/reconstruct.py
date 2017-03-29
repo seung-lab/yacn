@@ -150,13 +150,13 @@ def recompute_errors(V, epoch=None):
 	h5write(os.path.join(basename,name+"_machine_labels.h5"),flatten(V.G,V.raw_labels))
 
 	print("preparing to recompute errors")
-	sub_errors = np.minimum(errors[:,::2,::2], 1-V.changed[:,::2,::2])
+	sub_errors = np.minimum(V.errors[:,::2,::2], 1-V.changed[:,::2,::2])
 	sub_visited = 4*(1 - V.changed[:, ::2, ::2])
 	sub_samples = np.array(filter(lambda i: sub_visited[i[0],i[1],i[2]]==0, ds_samples))
 	print(sub_samples.shape)
 
 	print("recomputing errors")
-	sub_new_errors = glance_utils.unpack(reconstruct_utils.discrim_daemon(*(map(glance_utils.pack,[sub_machine_labels, sub_samples, sub_errors, sub_visited]))))
+	sub_new_errors = reconstruct_utils.unpack(reconstruct_utils.discrim_daemon(*(map(reconstruct_utils.pack,[sub_machine_labels, sub_samples, sub_errors, sub_visited]))))
 	
 	V.errors = np.zeros_like(errors)
 	V.errors[:,::2,::2] = sub_new_errors
@@ -165,13 +165,11 @@ def recompute_errors(V, epoch=None):
 	V.changed = np.zeros_like(V.machine_labels, dtype=np.int32)
 	print("done")
 
-def sort_samples():
-	global nsamples
-	global samples
-	nsamples = samples.shape[0]
-	weights = V.errors[[samples[:,0],samples[:,1],samples[:,2]]]
+def sort_samples(V):
+	nsamples = V.samples.shape[0]
+	weights = V.errors[[V.samples[:,0],V.samples[:,1],V.samples[:,2]]]
 	perm = np.argsort(weights)[::-1]
-	samples=samples[perm,:]
+	V.samples=V.samples[perm,:]
 
 patch_size=[33,318,318]
 full_size=[256,2048,2048]
@@ -184,8 +182,6 @@ if __name__ == "__main__":
 	print("loading files...")
 	vertices = h5read(os.path.join(basename, "vertices.h5"), force=True)
 	edges = h5read(os.path.join(basename, "edges.h5"), force=True)
-	ds_samples = h5read(os.path.join(basename, "ds/samples.h5"), force=True)
-	samples = h5read(os.path.join(basename, "samples.h5"), force=True)
 
 	V = Volume(basename,
 			{"image": "image.h5",
@@ -195,7 +191,9 @@ if __name__ == "__main__":
 			 "machine_labels": "mean_agg_tr.h5",
 			 "changed": np.zeros(full_size, dtype=np.int32),
 			 "valid": set([]),
-			 "G": regiongraphs.make_graph(vertices,edges)
+			 "G": regiongraphs.make_graph(vertices,edges),
+			 "samples": h5read(os.path.join(basename, "samples.h5"), force=True)
+			 "ds_samples": h5read(os.path.join(basename, "ds/samples.h5"), force=True)
 			 })
 	V.errors = V.errors[:]
 
@@ -205,7 +203,7 @@ if __name__ == "__main__":
 	close = lambda x,y: True
 
 	print("sorting samples...")
-	sort_samples()
+	sort_samples(V)
 	print("done")
 
 	for epoch in xrange(2):
@@ -224,7 +222,7 @@ if __name__ == "__main__":
 
 				#check if segment leaves window. If not, don't grow it.
 				central_segment = expand_list(cutout.G,[V.raw_labels[tuple(pos)]])
-				central_segment_mask = reconstruct_utils.indicator(cutout.raw_labels,central_segment)
+				central_segment_mask = indicator(cutout.raw_labels,central_segment)
 				central_segment_bbox = ndimage.find_objects(central_segment_mask, max_label=1)[0]
 				if all([x.stop-x.start < y/3 for x,y in zip(central_segment_bbox,patch_size)]):
 					raise ReconstructionException("dust; not growing")
@@ -235,11 +233,11 @@ if __name__ == "__main__":
 				toc()
 
 				tic()
-				mask_cutout=reconstruct_utils.indicator(cutout.raw_labels,current_segments)
+				mask_cutout=indicator(cutout.raw_labels,current_segments)
 				toc()
 
 				tic()
-				t = (reconstruct_utils.flood_fill(cutout.image, mask_cutout), cutout)
+				t = (reconstruct_utils.trace_daemon(cutout.image, mask_cutout), cutout)
 				toc()
 
 				"""
@@ -255,7 +253,7 @@ if __name__ == "__main__":
 				"""
 				tic()
 				central_segment = expand_list(G,[raw_labels[tuple(pos)]])
-				central_segment_mask = reconstruct_utils.indicator(cutout.raw_labels,central_segment)
+				central_segment_mask = indicator(cutout.raw_labels,central_segment)
 				errors[region]= (1-central_segment_mask)*errors[region] + central_segment_mask * reconstruct_utils.discrim(central_segment_mask)
 				toc()
 				"""
@@ -264,6 +262,6 @@ if __name__ == "__main__":
 				print(e)
 				misc_utils.tics=[]
 		recompute_errors(epoch=epoch)
-		sort_samples()
+		sort_samples(V)
 		
 	#datalist.to_pickle("tmp.pickle")
