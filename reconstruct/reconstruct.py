@@ -104,11 +104,11 @@ def commit(cutout, low_threshold=0.2, high_threshold=0.8, close = lambda x,y: Tr
 		raise ReconstructionException("blocking merge to glia")
 	#print(positive)
 	#print(negative)
-	original_components = list(nx.connected_components(V.G.subgraph(unique_list)))
+	original_components = list(nx.connected_components(V.G.subgraph(cutout.unique_list)))
 	regiongraphs.add_clique(V.G,positive, guard=close)
 	regiongraphs.delete_bipartite(V.G,positive,negative)
-	new_components = list(nx.connected_components(V.G.subgraph(unique_list)))
-	changed_list = set(unique_list) - set.union(*([set([])]+[s for s in original_components if s in new_components]))
+	new_components = list(nx.connected_components(V.G.subgraph(cutout.unique_list)))
+	changed_list = set(cutout.unique_list) - set.union(*([set([])]+[s for s in original_components if s in new_components]))
 	changed_cutout = indicator(cutout.raw_labels,  changed_list)
 	V.changed[cutout.region] = np.maximum(V.changed[cutout.region], changed_cutout)
 
@@ -151,22 +151,24 @@ def recompute_errors(V, epoch=None):
 	print("preparing to recompute errors")
 	sub_errors = np.minimum(V.errors[:,::2,::2], 1-V.changed[:,::2,::2])
 	sub_visited = 4*(1 - V.changed[:, ::2, ::2])
-	sub_samples = np.array(filter(lambda i: sub_visited[i[0],i[1],i[2]]==0, ds_samples))
+	sub_samples = np.array(filter(lambda i: sub_visited[i[0],i[1],i[2]]==0, V.ds_samples))
 	print(sub_samples.shape)
 
 	print("recomputing errors")
 	sub_new_errors = reconstruct_utils.unpack(reconstruct_utils.discrim_daemon(*(map(reconstruct_utils.pack,[sub_machine_labels, sub_samples, sub_errors, sub_visited]))))
 	
-	V.errors = np.zeros_like(errors)
+	V.errors = np.zeros_like(V.errors)
 	V.errors[:,::2,::2] = sub_new_errors
 
-	h5write(os.path.join(basename,name+"_errors.h5"),sub_new_errors)
+	h5write(os.path.join(basename,name+"_sub_errors.h5"),sub_new_errors)
+	h5write(os.path.join(basename,name+"_errors.h5"),V.errors)
 	V.changed = np.zeros(full_size, dtype=np.int32)
 	print("done")
 
 def sort_samples(V):
 	nsamples = V.samples.shape[0]
 	weights = V.errors[[V.samples[:,0],V.samples[:,1],V.samples[:,2]]]
+	print(np.histogram(weights, bins=20))
 	perm = np.argsort(weights)[::-1]
 	V.samples=V.samples[perm,:]
 
@@ -205,13 +207,13 @@ if __name__ == "__main__":
 	sort_samples(V)
 	print("done")
 
-	for epoch in xrange(2):
-		for i in xrange(8000):
+	for epoch in xrange(3):
+		for i in xrange(10000):
 			print(i)
 			try:
 
 				tic()
-				pos=perturb(samples[i,:],V)
+				pos=perturb(V.samples[i,:],V)
 				region = get_region(pos)
 				cutout=SubVolume(V,region)
 				#if (np.max(cutout.changed) > 0):
@@ -236,7 +238,7 @@ if __name__ == "__main__":
 				toc()
 
 				tic()
-				cutout.traced = (reconstruct_utils.trace_daemon(cutout.image, mask_cutout), cutout)
+				cutout.traced = reconstruct_utils.trace_daemon(cutout.image, mask_cutout)
 				toc()
 
 				"""
@@ -260,7 +262,7 @@ if __name__ == "__main__":
 			except ReconstructionException as e:
 				print(e)
 				misc_utils.tics=[]
-		recompute_errors(epoch=epoch)
+		recompute_errors(V,epoch=epoch)
 		sort_samples(V)
 		
 	#datalist.to_pickle("tmp.pickle")

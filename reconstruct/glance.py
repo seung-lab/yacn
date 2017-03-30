@@ -46,6 +46,7 @@ def set_selection(segments,append=False):
 	viewer.state['layers']['raw_labels']['segments'] = segments
 	print(viewer.state['layers']['raw_labels']['segments'])
 	viewer.broadcast()
+	draw_edges(V.G.subgraph(segments))
 
 def set_focus(pos):
 	global cutout
@@ -70,12 +71,21 @@ def trace():
 
 	global counter
 	counter += 1
-	viewer.add(data=cutout.traced, volume_type='image', name='trace'+str(counter), voxel_size=rev(resolution), offset=[(cutout.pos[i]-patch_size[i]/2)*resolution[i] for i in xrange(3)])
+	viewer.add(data=cutout.traced, volume_type='image', name='trace'+str(counter), voxel_size=rev(resolution), offset=rev([(cutout.pos[i]-patch_size[i]/2)*resolution[i] for i in xrange(3)]))
 	l=viewer.layers[-1]
 	viewer.register_volume(l.volume)
 	viewer.state['layers']['trace'+str(counter)]=l.get_layer_spec(viewer.get_server_url())
 	viewer.broadcast()
 	print("done")
+
+
+def draw_edges(G):
+	tmp = []
+	for u,v in G.edges():
+		tmp.append(rev(V.centroids[u,:]))
+		tmp.append(rev(V.centroids[v,:]))
+	viewer.state['layers']['edges']['points'] = tmp
+	viewer.broadcast()
 
 def draw_bbox(position):
 	position = rev(position)
@@ -142,18 +152,19 @@ def next_index(jump=1):
 neuroglancer.set_static_content_source(url='http://seungworkstation1000.princeton.edu:8080')
 
 #basename = sys.argv[1]
-basename=os.path.expanduser("~/mydatasets/3_3_1/")
+basename=os.path.expanduser("~/mydatasets/golden/")
 print("loading files...")
-vertices = h5read(os.path.join(basename, "vertices.h5"), force=True)
-edges = h5read(os.path.join(basename, "edges.h5"), force=True)
+vertices = h5read(os.path.join(basename, "epoch1_vertices.h5"), force=True)
+edges = h5read(os.path.join(basename, "epoch1_edges.h5"), force=True)
 
 V = Volume(basename,
 		{"image": "image.h5",
-		 "errors": "errors3.h5",
+		 "errors": "errors4.h5",
 		 "raw_labels": "raw.h5",
 		 "affinities": "aff.h5",
-		 "machine_labels": "mean_agg_tr.h5",
-		 "human_labels": "proofread.h5",
+		 "centroids": "raw_centroids.h5",
+		 #"machine_labels": "epoch1_machine_labels.h5",
+		 #"human_labels": "proofread.h5",
 		 "changed": np.zeros(full_size, dtype=np.int32),
 		 "valid": set([]),
 		 "G": regiongraphs.make_graph(vertices,edges),
@@ -161,6 +172,10 @@ V = Volume(basename,
 		 "ds_samples": h5read(os.path.join(basename, "ds/samples.h5"), force=True)
 		 })
 V.errors = V.errors[:]
+
+import pickle
+remap=pickle.load(open("epoch1_remap.pickle","rb"))
+unmap=pickle.load(open("epoch1_unmap.pickle","rb"))
 
 print("done")
 
@@ -180,10 +195,11 @@ viewer.on_state_changed = on_state_changed
 #viewer.add(data=np.array([[[0]]],dtype=np.uint8), volume_type='image', name='dummy', voxel_size=rev(resolution))
 viewer.add(data=V.image, volume_type='image', name='image', voxel_size=rev(resolution))
 viewer.add(data=V.errors, volume_type='image', name='errors', voxel_size=rev(resolution))
-#viewer.add(data=machine_labels, volume_type='segmentation', name='machine_labels', voxel_size=rev(resolution))
+#viewer.add(data=V.machine_labels, volume_type='segmentation', name='machine_labels', voxel_size=rev(resolution))
 viewer.add(data=V.raw_labels, volume_type='segmentation', name='raw_labels', voxel_size=rev(resolution))
-#viewer.add(data=human_labels, volume_type='segmentation', name='human_labels', voxel_size=rev(resolution))
+#viewer.add(data=V.human_labels, volume_type='segmentation', name='human_labels', voxel_size=rev(resolution))
 viewer.add(data=[], volume_type='synapse', name="bbox")
+viewer.add(data=[], volume_type='synapse', name="edges")
 #viewer.add(data=np.array([[[0]]],dtype=np.uint8), volume_type='image', name='dummy', voxel_size=rev(resolution))
 
 print('open your browser at:')
