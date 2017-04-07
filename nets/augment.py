@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+from utils import *
 
 class RandomRotationPadded():
 	def __init__(self):
@@ -18,7 +19,7 @@ class MissingSection():
 	def __call__(self,A):
 		#remember A is of shape [_,z,y,x,_]
 		s=static_shape(A)
-		mask = tf.to_float(rand_bool([1,static_shape(A)[1],1,1,1], prob = 1-self.p))
+		mask = tf.cast(rand_bool([1,static_shape(A)[1],1,1,1], prob = 1-self.p),A.dtype)
 		return mask * A
 
 class RandomBlur():
@@ -47,13 +48,13 @@ def circshift(A, dim, offset):
 	rangesB[dim] = slice(offset, s[dim])
 	return tf.reshape(tf.concat([A[tuple(rangesB)],A[tuple(rangesA)]],dim), s)
 
-class BrightnessContrast():
+class RandomBrightness():
 	def __init__(self):
 		self.delta = tf.random_uniform([],minval=-0.1,maxval=0.1)
 		self.factor = tf.random_uniform([],minval=0.95,maxval=1.05)
 	
 	def __call__(self,x):
-		return tf.maximum(0,tf.minimum(1,(x+self.delta)*self.factor))
+		return tf.maximum(tf.constant(0,dtype=x.dtype),tf.minimum(tf.constant(1,dtype=x.dtype),(x+self.delta)*self.factor))
 
 class MisAlign():
 	def __init__(self, max_offset):
@@ -74,9 +75,10 @@ class ApplyRandomSlice():
 	def __call__(self,A):
 		if not hasattr(self, "mask"):
 			z=static_shape(A)[1]
-			self.mask = tf.to_float(rand_bool([1,z,1,1,1], prob = 1-self.p))
+			self.mask = rand_bool([1,z,1,1,1], prob = 1-self.p)
+		mask = tf.cast(self.mask, A.dtype)
 		B = self.f(A)
-		return A*self.mask + B*(1-self.mask)
+		return A*mask + B*(tf.ones([],dtype=A.dtype)-mask)
 
 class ApplyRandomChunk():
 	def __init__(self, p, f):
@@ -101,16 +103,16 @@ def default_augmentation():
 	rr=RandomRotationPadded()
 	t1=ApplyRandomSlice(0.01, MisAlign([20,20]))
 	t2=ApplyRandomSlice(0.01, RandomBlur())
-	t3=MissingSection(0.01)
+	t3=ApplyRandomSlice(0.01, RandomBrightness())
+	t4=MissingSection(0.01)
 
 	def f_image(x):
 		s=static_shape(x)
-		return rr(t3(t2(t1(x))))[:,:,20:s[1]-20,20:s[2]-20,:]
+		return rr(t4(t3(t2(t1(x)))))[:,:,20:s[2]-20,20:s[3]-20,:]
 
 	def f_label(x):
-		#don't do random blur here
 		s=static_shape(x)
-		return rr(t3(t1(x)))[:,:,20:s[1]-20,20:s[2]-20,:]
+		return rr(t1(x))[:,:,20:s[2]-20,20:s[3]-20,:]
 	return f_image, f_label
 
 if __name__=='__main__':

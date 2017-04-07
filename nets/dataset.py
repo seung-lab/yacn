@@ -10,7 +10,7 @@ import random
 
 
 def h5read(filename):
-	print "reading from", filename, ". . ."
+	print "reading from", filename, "..."
 	f = h5py.File(filename, "r")
 	tmp = f["main"][()]
 	f.close()

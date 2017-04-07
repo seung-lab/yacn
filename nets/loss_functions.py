@@ -165,16 +165,38 @@ def label_loss_fun(vec_labels, human_labels, central_labels, central_labels_mask
 
 	return tf.reduce_sum(weight_matrix * cost) + tf.reduce_sum(tf.reshape(central_labels_mask,[-1,1]) * bounded_cross_entropy(affinity(vec_labels, centred_vec_labels),1)), predictions
 
-def has_error(obj, human_labels):
+def error_free(obj, human_labels):
 	obj = tf.reshape(obj, [-1])
-	human_labels = tf.reshape(human_labels, [-1])
 	ind = tf.to_int32(tf.argmax(obj, axis=0))
-	x1=tf.equal(obj, obj[ind])
-	x2=tf.equal(human_labels, human_labels[ind])
-	return tf.to_float(tf.logical_not(tf.logical_or(tf.less(obj[ind],0.5),tf.reduce_all(tf.equal(x1,x2)))))
+
+	def A():
+		human_labels_reshape = tf.reshape(human_labels, [-1])
+		closest_obj=tf.to_float(tf.equal(human_labels_reshape, human_labels_reshape[ind]))
+		return tf.to_float(tf.reduce_all(tf.equal(obj,closest_obj)))
+	
+	def B():
+		return 1-obj[ind]
+
+	return tf.maximum(A(),B())
+
+def has_error(obj, human_labels):
+	return 1-error_free(obj,human_labels)
 
 def localized_errors(obj, human_labels, ds_shape, expander):
-	return downsample([obj,human_labels], ds_shape, expander, has_error)
+	return 1-(downsample([obj,human_labels], ds_shape, expander, error_free))
+
+
+#obj should be zero-one
+def localized_errors_vectorized(obj, human_labels, ds_shape, expander):
+	obj_slices = downsample_vectorized(obj, ds_shape, expander)
+	human_labels_slices = downsample_vectorized(obj, ds_shape, expander)
+
+	obj_reshape = tf.reshape(obj_slices, list(ds_shape) + [-1])
+	human_labels_reshape = tf.reshape(human_labels_slices, list(ds_shape) + [-1])
+	obj_label = tf.reduce_max(obj_reshape*human_labels_reshape, keep_dims=True, axis=5)
+	empty = tf.less(obj_label, 0.5)
+	return 1-tf.squeeze(tf.to_float(tf.logical_or(empty, 
+		tf.reduce_all(tf.equal(obj_reshape, tf.to_float(tf.equal(obj_label, human_labels_reshape))), axis=5, keep_dims = True))), squeeze_dims = [5])
 
 #f is the function applied to the downsampling window
 def downsample(us, ds_shape, expander, f):
@@ -193,6 +215,26 @@ def downsample(us, ds_shape, expander, f):
 	else:
 		array_form = tf.scatter_nd(indices=inds, updates=map(lambda x: f(us[x]), slices), shape=shape[1:4])
 	return tf.reshape(array_form,  shape )
+
+def downsample_vectorized(us, ds_shape, expander):
+	shape = ds_shape
+	full_shape = static_shape(us)
+
+	with tf.device("/cpu:0"):
+		slices = [[[us[(slice(0,shape[0]),)+expander((slice(i,i+1), slice(j,j+1),slice(k,k+1))) + (slice(0,shape[4]),)] for k in xrange(shape[3])] for j in xrange(shape[2])] for i in xrange(shape[1])]
+		for i in xrange(shape[1]):
+			for j in xrange(shape[2]):
+				for k in xrange(shape[3]):
+					slices[i][j][k] = tf.expand_dims(slices[i][j][k], axis=0)
+		for i in xrange(shape[1]):
+			for j in xrange(shape[2]):
+				slices[i][j] = tf.stack(slices[i][j])
+		for i in xrange(shape[1]):
+			slices[i] = tf.stack(slices[i])
+		slices = tf.stack(slices)
+		slices = tf.expand_dims(slices, axis=0)
+	print(slices)
+	return slices
 
 def upsample_sum(ds, us_shape, expander):
 	shape = static_shape(ds)
@@ -224,7 +266,8 @@ def upsample_max(ds, us_shape, expander):
 
 	for (i,j,k),s in zip(inds, slices):
 		with tf.control_dependencies([latest]):
-			latest = us[s].assign(tf.maximum(us[s],ds[:,i,j,k,:]*tf.ones_like(us[s])))
+			x=us[s]
+			latest = x.assign(tf.maximum(x,ds[:,i,j,k,:]))
 	
 	with tf.control_dependencies([latest]):
 		return tf.identity(us)
