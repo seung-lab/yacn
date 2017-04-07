@@ -170,7 +170,7 @@ if __name__ == '__main__':
 				"samples": "samples.h5",
 			}
 	)
-	__init__(full_size=tuple(TRAIN.machine_labels[0].shape))
+	__init__(full_size=tuple(TRAIN.machine_labels[0].shape), checkpoint="~/checkpoint/discriminate2/081-19-27-58-test/model406800.ckpt")
 
 	dataset.h5write(os.path.join(TRAIN.directories[0], "errors4.h5"), 
 			np.squeeze(

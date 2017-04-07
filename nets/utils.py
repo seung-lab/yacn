@@ -37,6 +37,7 @@ class Model():
 						trace_file = open('timeline.ctf.json', 'w')
 						trace_file.write(trace.generate_chrome_trace_format())
 						trace_file.flush()
+						trace_file.close()
 					else:
 
 						_, quick_summary = self.sess.run(
@@ -119,8 +120,9 @@ class MultiVolume():
 	
 	def __getitem__(self, index):
 		vol_index, focus = index
-		return tf.reshape(tf.case([(tf.equal(vol_index,i), lambda: v[focus]) for i,v in enumerate(self.As)], default=lambda: self.As[0][focus], exclusive=True), self.patch_size)
+		return tf.reshape(tf.case([(tf.equal(vol_index,i), lambda: v[focus]) for i,v in enumerate(self.As)], default=lambda: tf.Print(self.As[0][focus],[vol_index],message="volume not found"), exclusive=True), self.patch_size)
 
+#differs from MultiVolume in that indexing is standard
 class MultiTensor():
 	def __init__(self, As):
 		self.As = As
@@ -128,6 +130,24 @@ class MultiTensor():
 		return tf.case([(tf.equal(index,i), lambda: tf.identity(v)) for i,v in enumerate(self.As)], default=lambda: tf.identity(self.As[0]), exclusive=True)
 			
 
+#tries to reuse placeholder
+#consumes l
+def static_constant_multivolume(sess,l,*args,**kwargs):
+	variables=[]
+	initializers=[]
+	placeholder = tf.placeholder(tf.as_dtype(l[0].dtype), shape=l[0].shape)
+	for i in xrange(len(l)):
+		v=tf.Variable(placeholder,name="scv")
+		variables.append(v)
+		initializers.append(tf.variables_initializer([v]))
+
+	for i in xrange(len(l)):
+		fd={}
+		fd[placeholder]=l[i]
+		sess.run(initializers[i], feed_dict=fd)
+		l[i]=None
+
+	return MultiVolume(variables,*args,**kwargs) 
 def random_row(A):
 	index=tf.random_uniform([],minval=0,maxval=static_shape(A)[0],dtype=tf.int32)
 	return A[index,:]
@@ -304,7 +324,9 @@ def collapse_image(x):
 	ret=tf.expand_dims(tf.concat(ims,0),0)
 	return ret
 
-def image_summary(name, x):
+def image_summary(name, x, zero_one=False):
+	if zero_one:
+		x=tf.cast(x*255, tf.uint8)
 	return tf.summary.image(name,tf.transpose(collapse_image(x), perm=[3,1,2,0]), max_outputs=6)
 
 def image_slice_summary(name, x):
