@@ -1,3 +1,4 @@
+include("Save.jl")
 using Save
 using HDF5
 
@@ -7,6 +8,7 @@ include("downsample.jl")
 include("compute_regiongraph.jl")
 include("filter_samples.jl")
 
+#TODO: Change this to read and write to a cloud filesystem
 function do_prep(basename, patch_size = (318,318,33))
 	mean_labels = h5read(joinpath(basename,"mean_agg_tr.h5"),"/main")
 	full_size = size(mean_labels)
@@ -26,4 +28,5 @@ function do_prep(basename, patch_size = (318,318,33))
 	Save.save(joinpath(basename,"edges.h5"), edges)
 end
 
-basename = expanduser("~/mydatasets/golden")
+basename = expanduser(ARGS[1])
+do_prep(basename)
