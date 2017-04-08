@@ -189,8 +189,8 @@ if __name__ == '__main__':
 			],
 			{
 				"image": "image.h5",
-				"human_labels": "proofread.h5",
-				"machine_labels": "mean_agg_tr.h5",
+				"human_labels": "lzf_proofread.h5",
+				"machine_labels": "lzf_mean_agg_tr.h5",
 				"samples": "filtered_samples.h5",
 				"valid": "valid.h5",
 			}
