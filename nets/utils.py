@@ -120,7 +120,14 @@ class MultiVolume():
 	
 	def __getitem__(self, index):
 		vol_index, focus = index
-		return tf.reshape(tf.case([(tf.equal(vol_index,i), lambda: v[focus]) for i,v in enumerate(self.As)], default=lambda: tf.Print(self.As[0][focus],[vol_index],message="volume not found"), exclusive=True), self.patch_size)
+
+		def focus_factory(i):
+			def f():
+				#return tf.Print(self.As[i][focus],[i])
+				return self.As[i][focus]
+			return f
+
+		return tf.reshape(tf.case([(tf.equal(vol_index,i), focus_factory(i)) for i in xrange(len(self.As))], default=lambda: tf.Print(self.As[0][focus],[vol_index],message="volume not found"), exclusive=True), self.patch_size)
 
 #differs from MultiVolume in that indexing is standard
 class MultiTensor():
