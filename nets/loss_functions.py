@@ -185,7 +185,7 @@ def has_error(obj, human_labels):
 def localized_errors(obj, human_labels, ds_shape, expander):
 	return 1-(downsample([obj,human_labels], ds_shape, expander, error_free))
 
-
+"""
 #obj should be zero-one
 def localized_errors_vectorized(obj, human_labels, ds_shape, expander):
 	obj_slices = downsample_vectorized(obj, ds_shape, expander)
@@ -197,6 +197,7 @@ def localized_errors_vectorized(obj, human_labels, ds_shape, expander):
 	empty = tf.less(obj_label, 0.5)
 	return 1-tf.squeeze(tf.to_float(tf.logical_or(empty, 
 		tf.reduce_all(tf.equal(obj_reshape, tf.to_float(tf.equal(obj_label, human_labels_reshape))), axis=5, keep_dims = True))), squeeze_dims = [5])
+"""
 
 #f is the function applied to the downsampling window
 def downsample(us, ds_shape, expander, f):

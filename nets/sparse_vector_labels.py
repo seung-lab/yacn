@@ -129,7 +129,7 @@ class VectorLabelModel(Model):
 					loss += loss1 + loss2 + loss3
 
 		def training_iteration():
-			optimizer = tf.train.AdamOptimizer(0.002, epsilon=0.1)
+			optimizer = tf.train.AdamOptimizer(0.001, epsilon=0.1)
 			train_op = optimizer.minimize(loss, colocate_gradients_with_ops=True)
 			with tf.control_dependencies([train_op]):
 				train_op = tf.group(self.step.assign_add(1), tf.Print(
@@ -181,6 +181,9 @@ if __name__ == '__main__':
 				os.path.expanduser("~/mydatasets/1_1_1/"),
 				os.path.expanduser("~/mydatasets/1_2_1/"),
 				os.path.expanduser("~/mydatasets/2_1_1/"),
+				os.path.expanduser("~/mydatasets/2_2_1/"),
+				os.path.expanduser("~/mydatasets/1_3_1/"),
+				os.path.expanduser("~/mydatasets/3_1_1/"),
 
 				os.path.expanduser("~/mydatasets/3_2_1/"),
 			],
@@ -230,5 +233,5 @@ args=None
 gc.collect()
 
 if __name__ == '__main__':
-	main_model.train(nsteps=1000000, checkpoint_interval=200)
+	main_model.train(nsteps=1000000, checkpoint_interval=3000, test_interval=15)
 	print("done")

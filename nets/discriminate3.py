@@ -70,18 +70,17 @@ class DiscrimModel(Model):
 								lambda: random_sample(tf.constant(train_vols)),
 								lambda: random_sample(tf.constant(test_vols)),
 								)
-						focus_lies=tf.concat([[0],tf.reshape(samples[vol_id,('RAND',0)],(3,)),[0]],0)
-						focus_lies = tf.Print(focus_lies, [vol_id, focus_lies], summarize=10)
+						focus=tf.concat([[0],tf.reshape(samples[vol_id,('RAND',0)],(3,)),[0]],0)
+						focus=tf.Print(focus,[vol_id, focus], message="focus", summarize=10)
 				
 						rr=RandomRotationPadded()
 
 						#1 is correct and 0 is incorrect
-						#truth_glimpse = rr(equal_to_centre(full_labels_truth[vol_id,focus_truth]))
-						lies_glimpse = rr(equal_to_centre(full_labels_lies[vol_id,focus_lies]))
-						tmp = full_labels_truth[vol_id,focus_lies]
+						lies_glimpse = rr(equal_to_centre(full_labels_lies[vol_id,focus]))
+						tmp = full_labels_truth[vol_id,focus]
 						truth_glimpse = rr(equal_to_centre(tmp))
 						human_labels = rr(tmp)
-						image_glimpse = rr(full_image[vol_id,focus_lies])
+						image_glimpse = rr(full_image[vol_id,focus])
 						
 						self.summaries.append(image_summary("lies_glimpse", lies_glimpse))
 						self.summaries.append(image_summary("truth_glimpse", truth_glimpse))
@@ -122,7 +121,7 @@ class DiscrimModel(Model):
 							def get_localized_errors():
 								print(ds_shape)
 								x=localized_errors(lies_glimpse, human_labels, ds_shape = ds_shape, expander=expander)
-								return tf.Print(x,[any_error])
+								return tf.Print(x,[any_error],message="any error")
 
 							errors = tf.cond(
 									tf.greater(any_error, 0.5),
@@ -142,7 +141,7 @@ class DiscrimModel(Model):
 				tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
 
 			def train_op():
-				optimizer = tf.train.AdamOptimizer(0.0005, beta1=0.9, epsilon=0.1)
+				optimizer = tf.train.AdamOptimizer(0.0008, beta1=0.9, epsilon=0.1)
 				op = optimizer.minimize(8e5*loss + reconstruction_loss, colocate_gradients_with_ops=True, var_list = var_list)
 
 				with tf.control_dependencies([op]):
@@ -223,7 +222,6 @@ args = {
 #pp.pprint(args)
 #with tf.device(args["devices"][0]):
 main_model = DiscrimModel(**args)
-#main_model.restore(zenity_workaround())
 print("model initialized")
 if __name__ == '__main__':
-	main_model.train(nsteps=100000, checkpoint_interval=1000)
+	main_model.train(nsteps=100000, checkpoint_interval=3000, test_interval=15)
