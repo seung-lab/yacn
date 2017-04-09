@@ -134,7 +134,13 @@ class MultiTensor():
 	def __init__(self, As):
 		self.As = As
 	def __getitem__(self, index):
-		return tf.case([(tf.equal(index,i), lambda: tf.identity(v)) for i,v in enumerate(self.As)], default=lambda: tf.identity(self.As[0]), exclusive=True)
+		def focus_factory(i):
+			def f():
+				return tf.Print(self.As[i],[self.As[i]], summarize=10)
+				#return self.As[i]
+			return f
+
+		return tf.case([(tf.equal(index,i), focus_factory(i)) for i in xrange(len(self.As))], default=lambda: tf.Print(tf.identity(self.As[0]), [i], message="tensor not found"), exclusive=True)
 			
 
 #tries to reuse placeholder
