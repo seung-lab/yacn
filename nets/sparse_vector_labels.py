@@ -88,7 +88,8 @@ class VectorLabelModel(Model):
 							)
 
 					focus = tf.concat([[0],tf.reshape(samples[vol_id,('RAND',0)],(3,)),[0]],0)
-					maxlabel = tf.shape(valid[vol_id])[0]
+					myvalid = valid[vol_id]
+					maxlabel = tf.shape(myvalid)[0]
 
 					image = full_image[vol_id, focus]
 					human_labels = full_human_labels[vol_id,focus]
@@ -98,13 +99,13 @@ class VectorLabelModel(Model):
 					image = aug_image(image)
 					human_labels = aug_label(human_labels)
 
-					is_valid = tf.to_float(valid[vol_id][tf.reshape(central_label,[])])
+					is_valid = tf.to_float(myvalid[tf.reshape(central_label,[])])
 					central_label_set = tf.scatter_nd(tf.reshape(central_label,[1,1]), [1], [maxlabel])
 
 					#0 means that this label is removed
 					#ensure that the central object is not masked, and also ensure that only valid objects are masked.
 					error_probability = tf.random_uniform([],minval=0.0,maxval=0.75,dtype=tf.float32)
-					masked_label_set = tf.maximum(tf.maximum(tf.to_int32(rand_bool([maxlabel],error_probability)), central_label_set), 1-valid[vol_id])
+					masked_label_set = tf.maximum(tf.maximum(tf.to_int32(rand_bool([maxlabel],error_probability)), central_label_set), 1-myvalid)
 
 					#ensure that zero is masked out
 					#masked_label_set = tf.minimum(masked_label_set, tf.concat(tf.zeros((1,),dtype=tf.int32),tf.ones((maxlabel-1,),dtype=tf.int32)))
