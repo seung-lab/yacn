@@ -8,7 +8,7 @@ import pprint
 from convkernels3d import *
 from activations import *
 from loss_functions import *
-import discrim_net
+import discrim_net3
 import os
 from datetime import datetime
 from experiments import save_experiment, repo_root
@@ -44,7 +44,7 @@ class DiscrimModel(Model):
 
 		with tf.name_scope('params'):
 			self.step=tf.Variable(0)
-			discrim, reconstruct = discrim_net.make_forward_net(patch_size,1,1)
+			discrim, reconstruct = discrim_net3.make_forward_net(patch_size,2,1)
 			self.discrim = discrim
 
 		#for some reason we need to initialize here first... Figure this out!
@@ -64,35 +64,38 @@ class DiscrimModel(Model):
 		ret_vol = Volume(self.ret, self.padded_patch_size)
 		visited_vol = Volume(self.visited, self.padded_patch_size)
 		machine_labels_vol = Volume(self.machine_labels, self.padded_patch_size)
+		image_vol = Volume(self.image, self.padded_patch_size)
 
 		self.focus_inpt = tf.placeholder(shape=(3,),dtype=tf.int32)
 		focus=tf.concat([[0],self.focus_inpt,[0]],0)
 
-		machine_labels_glimpse = equal_to_centre(machine_labels_vol[focus])
-		image_glimpse = image[focus]
-		coverage_mask = tf.ones_like(machine_labels_glimpse)
 
 		with tf.name_scope('iteration'):
-			def f():
-				with tf.device("/gpu:0"):
-					discrim_tower = self.discrim(tf.concat([machine_labels_glimpse,image_glimpse],4))
+			machine_labels_glimpse = equal_to_centre(machine_labels_vol[focus])
+			image_glimpse = image_vol[focus]
+			coverage_mask = np.zeros(self.padded_patch_size, dtype=np.float32)
+			coverage_mask[:,
+					self.padded_patch_size[1]/8:(self.padded_patch_size[1]*7)/8,
+					self.padded_patch_size[2]/8:(self.padded_patch_size[2]*7)/8,
+					self.padded_patch_size[3]/8:(self.padded_patch_size[3]*7)/8,
+					:]=1
+			with tf.device("/gpu:0"):
+				discrim_tower = self.discrim(tf.concat([machine_labels_glimpse,image_glimpse],4))
 				i=4
 				ds_shape = static_shape(discrim_tower[i])
 				print(ds_shape)
-				expander = compose(*reversed(discrim_net.range_expanders[0:i]))
+				expander = compose(*reversed(discrim_net3.range_expanders[0:i]))
 				otpt = upsample_max(tf.nn.sigmoid(discrim_tower[i]), self.padded_patch_size, expander)
-				
-				with tf.control_dependencies([
-						ret_vol.__setitem__(focus,tf.maximum(coverage_mask * otpt * machine_labels_glimpse,ret_vol[focus])), 
-						visited_vol.__setitem__(focus,tf.add(tf.to_int32(coverage_mask * machine_labels_glimpse), visited_vol[focus]))
-						]):
-					return tf.no_op()
+			
+			with tf.control_dependencies([
+					ret_vol.__setitem__(focus,tf.maximum(coverage_mask * otpt * machine_labels_glimpse,ret_vol[focus])), 
+					visited_vol.__setitem__(focus,tf.add(tf.to_int32(coverage_mask * machine_labels_glimpse), visited_vol[focus]))
+					]):
+				self.it = tf.no_op()
 
-			self.it = tf.cond(self.visited[focus[0],focus[1],focus[2],focus[3],focus[4]] > 4,
-					lambda: tf.no_op(),
-					f)
+			self.check = tf.less(self.visited[focus[0],focus[1],focus[2],focus[3],focus[4]], 2)
 
-		self.full_array_initializer = tf.variables_initializer([self.ret,self.visited,self.machine_labels])
+		self.full_array_initializer = tf.variables_initializer([self.ret,self.visited,self.machine_labels,self.image])
 
 		self.sess.run(self.full_array_initializer, feed_dict={
 			self.machine_labels_placeholder: np.zeros(full_size, dtype=np.int32), 
@@ -128,9 +131,23 @@ class DiscrimModel(Model):
 			self.ret_placeholder: ret, 
 			self.visited_placeholder: visited})
 		
+		counter=0
 		for i,sample in enumerate(sample_generator):
-			print(i)
-			_= self.sess.run(self.it, feed_dict={self.focus_inpt: sample})
+			t = time.time()
+			print(str(counter) + "-" + str(i))
+			if self.sess.run(self.check, feed_dict={self.focus_inpt: sample}):
+				self.sess.run(self.it, feed_dict={self.focus_inpt: sample})
+				counter += 1
+			if i == 10:
+				run_metadata = tf.RunMetadata()
+				_ =  self.sess.run(self.it, options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE), run_metadata=run_metadata, feed_dict={self.focus_inpt:sample})
+				trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+				trace_file = open('timeline.ctf.json', 'w')
+				trace_file.write(trace.generate_chrome_trace_format())
+				trace_file.flush()
+				trace_file.close()
+			elapsed = time.time() - t
+			print("elapsed: ", elapsed)
 
 		return self.sess.run(self.ret)
 
@@ -149,7 +166,7 @@ def __init__(full_size, checkpoint=None):
 	global main_model
 	args = {
 		"devices": get_device_list(),
-		"patch_size": tuple(discrim_net.patch_size_suggestions([2,3,3])[0]),
+		"patch_size": tuple(discrim_net3.patch_size_suggestions([2,3,3])[0]),
 		"full_size": full_size,
 		"name": "test",
 	}
@@ -157,29 +174,31 @@ def __init__(full_size, checkpoint=None):
 	pp.pprint(args)
 	with tf.device("/cpu:0"):
 		main_model = DiscrimModel(**args)
+	"""
 	if checkpoint is None:
 		main_model.restore(zenity_workaround())
 	else:
 		main_model.restore(checkpoint)
+	"""
 	print("model initialized")
 
 if __name__ == '__main__':
 	TRAIN = MultiDataset(
 			[
-				#os.path.expanduser("~/seungmount/research/ranl/error_detector/ds/"),
 				os.path.expanduser("~/mydatasets/3_3_1/"),
 				#os.path.expanduser("~/mydatasets/golden/"),
 			],
 			{
 				"machine_labels": "mean_agg_tr.h5",
 				"samples": "samples.h5",
+				"image": "image.h5",
 			}
 	)
-	__init__(full_size=tuple(TRAIN.machine_labels[0].shape), checkpoint="~/checkpoint/discriminate2/081-19-27-58-test/model406800.ckpt")
+	__init__(full_size=tuple(TRAIN.machine_labels[0].shape), checkpoint="~/checkpoint/discriminate3/098-14-34-59-test/model67200.ckpt")
 
 	dataset.h5write(os.path.join(TRAIN.directories[0], "errors.h5"), 
 			np.squeeze(
 				main_model.inference(
-					TRAIN.machine_labels[0], 
+					TRAIN.image[0], TRAIN.machine_labels[0],
 					sample_generator = random_sample_generator(TRAIN.samples[0])),
 				axis=(0,4)))
