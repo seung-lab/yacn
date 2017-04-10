@@ -248,7 +248,8 @@ def upsample_sum(ds, us_shape, expander):
 
 	for (i,j,k),s in zip(inds, slices):
 		with tf.control_dependencies([latest]):
-			latest = us[s].assign(us[s]+ds[:,i,j,k,:]*tf.ones_like(us[s]))
+			x=us[s]
+			latest = x.assign(x+ds[:,i,j,k,:]*tf.ones_like(x))
 	
 	with tf.control_dependencies([latest]):
 		return tf.identity(us)
@@ -266,9 +267,10 @@ def upsample_max(ds, us_shape, expander):
 	slices = [(slice(0,shape[0]),)+expander((slice(i,i+1), slice(j,j+1),slice(k,k+1))) + (slice(0,shape[4]),) for i,j,k in inds]
 
 	for (i,j,k),s in zip(inds, slices):
+		val=ds[:,i,j,k,:]
 		with tf.control_dependencies([latest]):
 			x=us[s]
-			latest = x.assign(tf.maximum(x,ds[:,i,j,k,:]))
+			latest = x.assign(tf.maximum(x,val))
 	
 	with tf.control_dependencies([latest]):
 		return tf.identity(us)
