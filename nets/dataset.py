@@ -44,8 +44,10 @@ def prep(typ,data):
 			return tmp/256
 		else:
 			return tmp
-	elif typ in ["human_labels", "machine_labels"]:
+	elif typ in ["human_labels", "machine_labels", "labels"]:
 		return autopad(data.astype(np.int32))
+	elif typ in ["labels64"]:
+		return autopad(data.astype(np.int64))
 	elif typ in ["valid"]:
 		return data.astype(np.int32)
 	elif typ in ["samples"]:

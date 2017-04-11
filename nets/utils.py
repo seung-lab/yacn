@@ -2,10 +2,10 @@ import numpy as np
 import tensorflow as tf
 import os
 from datetime import datetime
-from experiments import save_experiment, repo_root
 from interrupt_handler import DelayedKeyboardInterrupt
 from tensorflow.python.client import timeline, device_lib
 import time
+import gc
 from subprocess import call
 
 dtype=tf.float32
@@ -16,7 +16,7 @@ shape_dictz={}
 class Model():
 
 	def restore(self, modelpath):
-		modelpath = os.path.expanduser(modelpath)
+		modelpath = os.path.realpath(os.path.expanduser(modelpath))
 		self.saver.restore(self.sess, modelpath)
 
 	def train(self, nsteps=100000, checkpoint_interval=1000, test_interval=10):
@@ -30,7 +30,7 @@ class Model():
 					else:
 						iteration_type=0
 					step=self.sess.run(self.step)
-					if i==5:
+					if i==-1:
 						_, quick_summary = self.sess.run(
 								[self.iter_op, self.quick_summary_op], options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE), run_metadata=self.run_metadata, feed_dict={self.iteration_type:iteration_type})
 						trace = timeline.Timeline(step_stats=self.run_metadata.step_stats)
@@ -71,7 +71,6 @@ class Model():
 		print('logging to {}'.format(logdir))
 		if not os.path.exists(logdir):
 			os.makedirs(logdir)
-		#save_experiment(exp_name)
 		self.summary_writer = tf.summary.FileWriter(
 			logdir, graph=self.sess.graph)
 		print ('log initialized')
@@ -136,8 +135,8 @@ class MultiTensor():
 	def __getitem__(self, index):
 		def focus_factory(i):
 			def f():
-				return tf.Print(self.As[i],[self.As[i]], summarize=10)
-				#return self.As[i]
+				#return tf.Print(self.As[i],[self.As[i]], summarize=10)
+				return self.As[i]
 			return f
 
 		return tf.case([(tf.equal(index,i), focus_factory(i)) for i in xrange(len(self.As))], default=lambda: tf.Print(tf.identity(self.As[0]), [i], message="tensor not found"), exclusive=True)
@@ -159,6 +158,7 @@ def static_constant_multivolume(sess,l,*args,**kwargs):
 		fd[placeholder]=l[i]
 		sess.run(initializers[i], feed_dict=fd)
 		l[i]=None
+		gc.collect()
 
 	return MultiVolume(variables,*args,**kwargs) 
 def random_row(A):
