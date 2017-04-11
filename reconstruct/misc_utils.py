@@ -31,7 +31,7 @@ def tic():
 
 def toc(msg="toc"):
 	elapsed = time.time() - tics.pop()
-	#print("\t"*len(tics) + msg + " " + str(elapsed))
+	print("\t"*len(tics) + msg + " " + str(elapsed))
 
 def indicator(A, s):
 	return np.reshape(np.in1d(A,np.array(list(s))).astype(np.int32),np.shape(A))

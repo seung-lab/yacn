@@ -7,14 +7,7 @@ import numpy as np
 from multiprocessing import Process, Queue
 import misc_utils
 import uuid
-
-
-def discrim(mask):
-	subsampled_mask = mask[:,1:-1:2,1:-1:2]
-	X,Y,Z=np.shape(subsampled_mask)
-	ret=np.zeros_like(mask,dtype=np.float32)
-	ret[:,1:-1:2,1:-1:2]=np.reshape(discrim_daemon(subsampled_mask),[X,Y,Z])
-	return ret
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 class FileArray(object):
 	def __init__(self, A):
@@ -35,15 +28,15 @@ def pack(A):
 	else:
 		return A
 
-def run_trace(q1,q2):
+def run_trace(q1,q2,device):
 	import os
-	os.environ["CUDA_VISIBLE_DEVICES"]=""
+	os.environ["CUDA_VISIBLE_DEVICES"]=device
 
 	import sys
 	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
 	import sparse_vector_labels_inference
 	#import pythonzenity
-	sparse_vector_labels_inference.main_model.restore("~/checkpoint/sparse_vector_labels/057-23-23-56-test/model999800.ckpt")
+	sparse_vector_labels_inference.main_model.restore("~/experiments/sparse_vector_labels/latest.ckpt")
 	print("ready")
 	while True:
 		try:
@@ -56,13 +49,35 @@ def run_trace(q1,q2):
 		except Exception as e:
 			print(e)
 
-def run_recompute_discrim(q1,q2):
+def run_discrim_online(q1,q2,device):
 	import os
-	os.environ["CUDA_VISIBLE_DEVICES"]=""
+	os.environ["CUDA_VISIBLE_DEVICES"]=device
+
+	import sys
+	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
+	import discriminate3_online_inference
+	#import pythonzenity
+	discriminate3_online_inference.main_model.restore("~/experiments/discriminate3/latest.ckpt")
+	print("ready")
+	while True:
+		try:
+			#print("waiting")
+			image, mask = q1.get()
+			X,Y,Z=np.shape(image)
+			#print("received")
+			q2.put(np.reshape(discriminate3_online_inference.main_model.test(image, mask),[X,Y,Z]))
+			#print("done")
+		except Exception as e:
+			print(e)
+
+
+def run_recompute_discrim(q1,q2,device):
+	import os
+	os.environ["CUDA_VISIBLE_DEVICES"]=device
 	import sys
 	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
 	import discriminate2_inference
-	discriminate2_inference.__init__([1,256,1024,1024,1],checkpoint="~/checkpoint/discriminate2/081-19-27-58-test/model406800.ckpt")
+	discriminate3_inference.__init__([1,256,2048,1048,1],checkpoint="~/experiments/discriminate3/latest.ckpt")
 	while True:
 		try:
 			#print("waiting")
@@ -75,10 +90,10 @@ def run_recompute_discrim(q1,q2):
 			print(e)
 
 class ComputeDaemon():
-	def __init__(self,f):
+	def __init__(self,f,device):
 		self.q1 = Queue()
 		self.q2 = Queue()
-		self.p = Process(target=f, args=(self.q1,self.q2))
+		self.p = Process(target=f, args=(self.q1,self.q2,device))
 		self.p.daemon=True
 		self.p.start()
 	def __call__(self, *args):
@@ -86,5 +101,6 @@ class ComputeDaemon():
 		return self.q2.get()
 
 
-discrim_daemon = ComputeDaemon(run_recompute_discrim)
-trace_daemon = ComputeDaemon(run_trace)
+#discrim_daemon = ComputeDaemon(run_recompute_discrim)
+discrim_online_daemon = ComputeDaemon(run_discrim_online,"0")
+trace_daemon = ComputeDaemon(run_trace,"1")

@@ -37,16 +37,22 @@ def get_selection():
 	s=set(map(int,viewer.state['layers']['raw_labels']['segments']))
 	return s
 
-def set_selection(segments,append=False):
-	segments = map(int, expand_list(V.G, segments))
+def set_selection(segments,append=False,expand=True):
+	if expand:
+		segments = bfs(V.G, segments)
+	segments = map(int, segments)
 	if append:
 		segments = segments + list(get_selection())
-	segments = sorted(list(set(segments)))
+	segments=set(segments)
+	restricted_segments = segments - glial_list
+	if len(restricted_segments) < len(segments):
+		print("not displaying glial cell")
+	segments = sorted(list(restricted_segments))
 		
 	viewer.state['layers']['raw_labels']['segments'] = segments
 	print(viewer.state['layers']['raw_labels']['segments'])
 	viewer.broadcast()
-	draw_edges(V.G.subgraph(segments))
+	#draw_edges(V.G.subgraph(segments))
 
 def set_focus(pos):
 	global cutout
@@ -108,7 +114,7 @@ def draw_bbox(position):
 	viewer.broadcast()
 
 def select_neighbours(threshold=0.5):
-	set_selection(cutout.local_errors(threshold=threshold), append=True)
+	set_selection(bfs(cutout.G,cutout.local_errors(threshold=threshold)), append=True, expand=False)
 
 def perturb_position(radius=(1,15,15)):
 	pos=get_focus()
@@ -152,10 +158,10 @@ def next_index(jump=1):
 neuroglancer.set_static_content_source(url='http://seungworkstation1000.princeton.edu:8080')
 
 #basename = sys.argv[1]
-basename=os.path.expanduser("~/mydatasets/golden/")
+basename=os.path.expanduser("~/mydatasets/3_3_1/")
 print("loading files...")
-vertices = h5read(os.path.join(basename, "epoch1_vertices.h5"), force=True)
-edges = h5read(os.path.join(basename, "epoch1_edges.h5"), force=True)
+vertices = h5read(os.path.join(basename, "vertices.h5"), force=True)
+edges = h5read(os.path.join(basename, "edges.h5"), force=True)
 
 V = Volume(basename,
 		{"image": "image.h5",
@@ -169,14 +175,19 @@ V = Volume(basename,
 		 "valid": set([]),
 		 "G": regiongraphs.make_graph(vertices,edges),
 		 "samples": h5read(os.path.join(basename, "samples.h5"), force=True),
-		 "ds_samples": h5read(os.path.join(basename, "ds/samples.h5"), force=True)
 		 })
 V.errors = V.errors[:]
+glial_list=set(bfs(V.G, [2]))
+"""
+import read_otpt
+n=0
+l=read_otpt.axon_splits
+def next_error():
+	global n
+	set_selection([l[n% len(l)]])
+	n=n+1
 
-import pickle
-remap=pickle.load(open("epoch1_remap.pickle","rb"))
-unmap=pickle.load(open("epoch1_unmap.pickle","rb"))
-
+"""
 print("done")
 
 #graph_server_url=graph_server.start_server(V.G)
@@ -194,7 +205,7 @@ def on_state_changed(state):
 viewer.on_state_changed = on_state_changed
 #viewer.add(data=np.array([[[0]]],dtype=np.uint8), volume_type='image', name='dummy', voxel_size=rev(resolution))
 viewer.add(data=V.image, volume_type='image', name='image', voxel_size=rev(resolution))
-viewer.add(data=V.errors, volume_type='image', name='errors', voxel_size=rev(resolution))
+viewer.add(data=V.errors[:,::2,::2], volume_type='image', name='errors', voxel_size=[8,8,40])
 #viewer.add(data=V.machine_labels, volume_type='segmentation', name='machine_labels', voxel_size=rev(resolution))
 viewer.add(data=V.raw_labels, volume_type='segmentation', name='raw_labels', voxel_size=rev(resolution))
 #viewer.add(data=V.human_labels, volume_type='segmentation', name='human_labels', voxel_size=rev(resolution))

@@ -20,7 +20,7 @@ def delete_bipartite(G, vertices1, vertices2):
 				#print "deleted edge", v1, v2
 				G.remove_edge(v1,v2)
 
-def expand_list(G,l):
+def bfs(G,l):
 	return set(_plain_bfs(G,l))
 
 def _plain_bfs(G, sources):
