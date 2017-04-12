@@ -124,7 +124,7 @@ class VectorLabelModel(Model):
 						#loss1, prediction = label_loss_fun(vector_labels, human_labels, central_labels, central)
 						#loss2, long_range_affinities = long_range_loss_fun(vector_labels, human_labels, offsets, mask)
 						guess = affinity(central_vector,vector_labels)
-						truth = label_diff(human_labels, extract_central(human_labels))
+						truth = label_diff(human_labels, central_label)
 						loss3 = tf.reduce_sum(bounded_cross_entropy(guess,truth)) * is_valid
 						loss += loss1 + loss2 + loss3
 
@@ -178,29 +178,25 @@ class VectorLabelModel(Model):
 	def load_random_dataset(self):
 		pass
 
-if __name__ == '__main__':
-	TRAIN = dataset.MultiDataset(
-			[
-				os.path.expanduser("~/mydatasets/1_1_1/"),
-				os.path.expanduser("~/mydatasets/1_2_1/"),
-				os.path.expanduser("~/mydatasets/2_1_1/"),
-				os.path.expanduser("~/mydatasets/2_2_1/"),
-				os.path.expanduser("~/mydatasets/1_3_1/"),
-				os.path.expanduser("~/mydatasets/3_1_1/"),
+TRAIN = dataset.MultiDataset(
+		[
+			os.path.expanduser("~/mydatasets/1_1_1/"),
+			os.path.expanduser("~/mydatasets/1_2_1/"),
+			os.path.expanduser("~/mydatasets/2_1_1/"),
+			os.path.expanduser("~/mydatasets/2_2_1/"),
+			os.path.expanduser("~/mydatasets/1_3_1/"),
+			os.path.expanduser("~/mydatasets/3_1_1/"),
 
-				os.path.expanduser("~/mydatasets/3_2_1/"),
-			],
-			{
-				"image": "image.h5",
-				"human_labels": "lzf_proofread.h5",
-				"machine_labels": "lzf_mean_agg_tr.h5",
-				"samples": "filtered_samples.h5",
-				"valid": "valid.h5",
-			}
-	)
-else:
-	TRAIN = dataset.MultiDataset(
-			[os.path.expanduser("~/mydatasets/dummy/")], {"image": "image.h5", "human_labels": "proofread.h5", "machine_labels": "mean_agg_tr.h5", "valid": "valid.h5", "samples": "samples.h5"})
+			os.path.expanduser("~/mydatasets/3_2_1/"),
+		],
+		{
+			"image": "image.h5",
+			"human_labels": "lzf_proofread.h5",
+			"machine_labels": "lzf_mean_agg_tr.h5",
+			"samples": "filtered_samples.h5",
+			"valid": "valid.h5",
+		}
+)
 
 patch_size=(33,318,318)
 args = {
@@ -225,6 +221,7 @@ args = {
 #pp = pprint.PrettyPrinter(indent=4)
 #pp.pprint(args)
 main_model = VectorLabelModel(**args)
+main_model.restore(zenity_workaround())
 
 print("initialized")
 TRAIN=None

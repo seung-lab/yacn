@@ -26,23 +26,23 @@ class VectorLabelModel(Model):
 
 	def __init__(self, patch_size,
 				 nvec_labels, maxn,
-				 devices, name=None):
+				 name=None):
 
 		self.name=name
 		self.summaries = []
-		self.devices = devices
 		self.patch_size = patch_size
 		self.padded_patch_size = (1,) + patch_size + (1,)
 		self.maxn = maxn
 		self.nvec_labels = nvec_labels
 
 		config = tf.ConfigProto(
-			gpu_options = tf.GPUOptions(allow_growth=True),
+			gpu_options = tf.GPUOptions(
+				per_process_gpu_memory_fraction=0.9,
+				),
 			allow_soft_placement=True,
 			#log_device_placement=True,
-			#gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.9),
 		)
-		config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+		#config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
 		self.sess = tf.Session(config=config)
 		self.run_metadata = tf.RunMetadata()
 
@@ -74,7 +74,6 @@ class VectorLabelModel(Model):
 
 patch_size=(33,318,318)
 args = {
-	"devices": get_device_list(),
 	"patch_size": patch_size,
 	"nvec_labels": 6,
 	"maxn": 40,

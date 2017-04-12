@@ -180,9 +180,9 @@ def __init__(full_size, checkpoint=None):
 if __name__ == '__main__':
 	TRAIN = MultiDataset(
 			[
-				#os.path.expanduser("~/mydatasets/3_3_1/"),
+				os.path.expanduser("~/mydatasets/3_3_1/"),
 				#os.path.expanduser("~/mydatasets/golden/"),
-				os.path.expanduser("~/mydatasets/golden_test/"),
+				#os.path.expanduser("~/mydatasets/golden_test/"),
 			],
 			{
 				"machine_labels": "mean_agg_tr.h5",

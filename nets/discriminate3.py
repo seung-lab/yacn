@@ -12,7 +12,6 @@ from loss_functions import *
 import discrim_net3
 import os
 from datetime import datetime
-from experiments import save_experiment, repo_root
 import random
 
 import tensorflow as tf
@@ -141,7 +140,7 @@ class DiscrimModel(Model):
 				tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
 
 			def train_op():
-				optimizer = tf.train.AdamOptimizer(0.0008, beta1=0.9, epsilon=0.1)
+				optimizer = tf.train.AdamOptimizer(0.001, beta1=0.9, epsilon=0.1)
 				op = optimizer.minimize(8e5*loss + reconstruction_loss, colocate_gradients_with_ops=True, var_list = var_list)
 
 				with tf.control_dependencies([op]):
@@ -208,7 +207,6 @@ TRAIN = MultiDataset(
 			"samples": "filtered_samples.h5",
 		}
 )
-		
 args = {
 	"devices": get_device_list(),
 	"patch_size": tuple(discrim_net3.patch_size_suggestions([2,3,3])[0]),
@@ -222,6 +220,7 @@ args = {
 #pp.pprint(args)
 #with tf.device(args["devices"][0]):
 main_model = DiscrimModel(**args)
+main_model.restore("~/experiments/discriminate3/latest.ckpt")
 print("model initialized")
 if __name__ == '__main__':
 	main_model.train(nsteps=100000, checkpoint_interval=3000, test_interval=15)
