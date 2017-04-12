@@ -1,12 +1,15 @@
 using PyCall
 using Save
+using DataStructures
 
 @pyimport scipy.spatial as sp
 
-function flatten{T<:Vector}(A::Vector{T};k=3)
-	A_flat=fill(0,(k,length(A)))
+function flatten{N,T}(A::Vector{NTuple{N,T}})
+	A_flat=fill(zero(T),(N,length(A)))
 	for i in 1:length(A)
-		A_flat[:,i]=A[i]
+		for j in 1:N
+			A_flat[j,i]=A[i][j]
+		end
 	end
 	return A_flat
 end
@@ -14,35 +17,44 @@ function unordered(x,y)
 	return (min(x,y),max(x,y))
 end
 
-function compile_candidates{T}(raw::Array{T,3}, step_size, patch_size)
-	s=Set{Tuple{T,T}}()
+function compute_fullgraph{T}(raw::Array{T,3}; resolution=Int[4,4,40], radius=130)
+	voxel_radius = round(Int, Int[radius,radius,radius] ./ resolution, RoundUp)
+
+	patch_size = max(Int[100,100,10], 2*voxel_radius)
+	step_size = patch_size - voxel_radius
+	println(voxel_radius)
+	println(patch_size)
+	println(step_size)
+	edges=Set{Tuple{T,T}}()
 
 	rk = 0:step_size[3]:size(raw,3)
 	rj = 0:step_size[2]:size(raw,2)
 	ri = 0:step_size[1]:size(raw,1)
+	N=prod(map(length, [ri,rj,rk]))
+	n=0
 	for k in rk
 		for j in rj
 			for i in ri
-				l=unique(raw[i+1:min(i+patch_size[1],size(raw,1)), j+1:min(j+patch_size[2],size(raw,2)), k+1:min(k+patch_size[3], size(raw,3))])
-				for I in 1:length(l)
-					for J in I+1:length(l)
-						if l[I]!=0 && l[J] != 0
-							push!(s,unordered(l[I],l[J]))
-						end
-					end
-				end
+				n+=1
+				println("$(n)/$(N)")
+				union!(edges,compute_fullgraph_direct(
+										raw[i+1:min(i+patch_size[1],size(raw,1)),
+									  	j+1:min(j+patch_size[2],size(raw,2)),
+										k+1:min(k+patch_size[3],size(raw,3))],
+										resolution=resolution, 
+										radius=radius))
 			end
 		end
 	end
-	return s
+	return flatten(collect(edges))
 end
 
 #Computes all pairs of supervoxels whose minimum distance is less than a fixed distance
-function compute_fullgraph{T}(raw::Array{T,3}; resolution=Int[4,4,40], radius=130)
-	point_lists = Vector{Vector{Int32}}[Vector{Int32}[] for i in 1:maximum(raw)]
+function compute_fullgraph_direct{T}(raw::Array{T,3}; resolution=Int[4,4,40], radius=130)
+	point_lists=DefaultDict{T,Vector{Tuple{Int32,Int32,Int32}}}(()->Tuple{Int32,Int32,Int32}[])
 
-	println("accumulating points...")
-	@time for k in 1:size(raw,3), j in 1:size(raw,2), i in 1:size(raw,1)
+	#accumulating points
+	for k in 1:size(raw,3), j in 1:size(raw,2), i in 1:size(raw,1)
 		if raw[i,j,k] != 0 &&
 			(
 				(i > 1 && raw[i,j,k] != raw[i-1,j,k]) ||
@@ -54,41 +66,26 @@ function compute_fullgraph{T}(raw::Array{T,3}; resolution=Int[4,4,40], radius=13
 				(k < size(raw,3) && raw[i,j,k] != raw[i,j,k+1])
 			)
 
-			push!(point_lists[raw[i,j,k]],Int[i*resolution[1],j*resolution[2],k*resolution[3]])
+			push!(point_lists[raw[i,j,k]],(i*resolution[1],j*resolution[2],k*resolution[3]))
 		end
 	end
+	
+	#generate trees
+	trees = Dict(i => sp.cKDTree(transpose(flatten(points))) for (i,points) in point_lists)
 
-	println("sparsity: $(sum(map(length, point_lists))) / $(size(raw,1)*size(raw,2)*size(raw,3))")
-
-	println("compiling candidates...")
-	patch_size = round(Int, 1.6 .* [radius, radius, radius] ./ resolution, RoundUp)
-	step_size = round(Int, 0.5 .* [radius, radius, radius] ./ resolution, RoundDown)
-	@time s=compile_candidates(raw, step_size, patch_size)
-
-	println("$(length(s)) candidate edges")
-
-	println("generating trees...")
-	@time trees = [length(points)>0 ? sp.cKDTree(transpose(flatten(points))) : nothing for points in point_lists]
-
-	edges = Vector{Int32}[]
-	println("computing distances...")
-	n=0
-	@time for (i,j) in s
-		n+=1
-		if mod(n,100)==0
-			println("$(n)/$(length(s))")
-		end
-		t1=trees[i]
-		t2=trees[j]
-		if t1 != nothing && t2 != nothing
-			tmp=t1[:count_neighbors](t2,r=radius)
-			if tmp > 0
-				push!(edges,Int32[i,j])
+	#compute distances
+	edges = Tuple{T,T}[]
+	vertices = collect(keys(trees))
+	for i in 1:length(vertices)
+		for j in i+1:length(vertices)
+			t1=trees[vertices[i]]
+			t2=trees[vertices[j]]
+			if t1[:count_neighbors](t2,r=radius) > 0
+				push!(edges,unordered(vertices[i],vertices[j]))
 			end
 		end
 	end
-	println("$(length(edges)) edges")
-	return flatten(edges, k=2)
+	return edges
 end
 basename = expanduser("~/mydatasets/3_3_1/")
 raw_labels = load(joinpath(basename, "raw.h5"))#[1:1024,1:1024,1:128]
