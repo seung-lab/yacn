@@ -10,7 +10,6 @@ import misc_utils
 import sys
 import traceback
 from misc_utils import *
-import glance_utils
 
 import os
 import os.path
@@ -18,14 +17,14 @@ import os.path
 PERTURB_RADIUS=(1,15,15)
 patch_size=[33,318,318]
 full_size=[256,2048,2048]
-LOW_THRESHOLD=0.15
-HIGH_THRESHOLD=0.85
+LOW_THRESHOLD=0.1
+HIGH_THRESHOLD=0.9
 DUST_THRESHOLD=[x/2 for x in patch_size]
 CENTRAL_CROP = 0.33333
 VISITED_CROP = 0.33333
-ERRORS_CROP = 0.33333
+ERRORS_CROP = 0.15
 N_EPOCHS = 1
-N_STEPS = 8000
+N_STEPS = 15000
 GLOBAL_EXPAND = True
 ERROR_THRESHOLD=0.5
 
@@ -54,15 +53,10 @@ class SubVolume():
 			self.central_unique_list = filter(lambda x: x!=0, np.unique(self.raw_labels[subregion]))
 		elif name == "G":
 			self.G = self.parent.G.subgraph(self.unique_list)
-		elif name == "local_labels":
+		elif name == "local_human_labels":
+			global proofread_G
 			tic()
-			components=nx.connected_components(self.G)
-			d={}
-			for i,nodes in enumerate(components,1):
-				for node in nodes:
-					d[node]=i
-			d[0]=0
-			self.local_labels = np.vectorize(d.get)(self.raw_labels)
+			self.local_human_labels = rasterize(proofread_G.subgraph(self.unique_list), self.raw_labels)
 			toc("local labels")
 		else:
 			setattr(self, name, getattr(self.parent,name)[self.region])
@@ -77,6 +71,15 @@ class SubVolume():
 		additional_segments = filter(lambda x: x != 0 and x not in self.parent.valid, additional_segments)
 
 		return additional_segments
+
+def rasterize(G,raw):
+	components=nx.connected_components(G)
+	d={}
+	for i,nodes in enumerate(components,1):
+		for node in nodes:
+			d[node]=i
+	d[0]=0
+	return np.vectorize(d.get)(raw)
 
 def get_region(pos):
 	if not all([patch_size[i]/2 < pos[i] < (full_size[i] - patch_size[i]/2) for i in range(3)]):
@@ -95,26 +98,53 @@ def crop_region(patch_size, trim):
 def analyze(cutout,example_id):
 	unique_list = cutout.central_unique_list
 	args = [cutout.raw_labels, unique_list]
+	tic()
 	guess = measurements.mean(cutout.traced, *args)
-	truth = measurements.mean(cutout.human_labels[np.unravel_index(np.argmax(cutout.traced),cutout.raw_labels.shape)]==cutout.human_labels, *args)
+	truth = measurements.mean(cutout.local_human_labels[np.unravel_index(np.argmax(cutout.traced),cutout.raw_labels.shape)]==cutout.local_human_labels, *args)
 	volumes = measurements.sum(np.ones_like(cutout.raw_labels), *args)
 	histogram_list = list(ndimage.histogram(cutout.traced, 0, 1, 10, *args))
+	toc("compute statistics")
 
 
+	tic()
 	positive = [unique_list[i] for i in xrange(len(unique_list)) if guess[i] > 0.5]
 	negative = [unique_list[i] for i in xrange(len(unique_list)) if guess[i] <= 0.5]
-
-
 	new_graph = V.G.subgraph(cutout.unique_list).copy()
+
 	regiongraphs.add_clique(new_graph, positive)
+	regiongraphs.delete_bipartite(new_graph,positive,negative)
+
 	new_obj = indicator(cutout.raw_labels, bfs(new_graph, positive))
-	new_errors_cutout = reconstruct_utils.discrim_online_daemon(cutout.image, new_obj)
-	old_errors_cutout = cutout.errors * new_obj
-	d_error = crop(new_errors_cutout,0.5) - crop(old_errors_cutout,0.5)
-	print(np.histogram(d_error, bins=20, range=(-1.0,1.0)))
+	new_errors_cutout = crop(reconstruct_utils.discrim_online_daemon(cutout.image, new_obj), ERRORS_CROP)
+	old_errors_cutout = crop(cutout.errors * new_obj, ERRORS_CROP)
+	#d_error = crop(new_errors_cutout,ERRORS_CROP) - crop(old_errors_cutout,ERRORS_CROP)
+	#print(np.histogram(d_error, bins=20, range=(-1.0,1.0)))
+	toc("computing change in error")
+
+	guess_margin = np.min(np.append(guess[guess > 0.5],1)) - np.max(np.append(guess[guess <= 0.5],0))
+	true_margin = np.min(np.append(guess[truth > 0.5],1)) - np.max(np.append(guess[truth <= 0.5],0))
 
 
-	return pd.DataFrame([[guess[i],truth[i],volumes[i],args[1][i],histogram_list[i],example_id] for i in xrange(len(args[1]))],columns=["guess","truth","volume","seg_id","histogram","example_id"])
+	df1 = pd.DataFrame.from_dict(
+			{
+				"guess": guess,
+				"truth": truth,
+				"volume": volumes,
+				"seg_id": unique_list,
+				"example_id": [example_id for i in unique_list],
+				"histogram": histogram_list
+			}
+			)
+	df2 = pd.DataFrame.from_dict(
+			{
+				"guess_margin": [guess_margin],
+				"true_margin": [true_margin],
+				"err_max": [np.max(new_errors_cutout)],
+				"err_min": [np.min(new_errors_cutout)],
+				"err_mean": [np.mean(new_errors_cutout)],
+			}
+			)
+	return df1, df2
 
 def commit(cutout, low_threshold=LOW_THRESHOLD, high_threshold=HIGH_THRESHOLD, close = lambda x,y: True):
 	V=cutout.parent
@@ -143,13 +173,13 @@ def commit(cutout, low_threshold=LOW_THRESHOLD, high_threshold=HIGH_THRESHOLD, c
 
 	"""
 	original_components = list(nx.connected_components(V.G.subgraph(cutout.unique_list)))
-	regiongraphs.add_clique(V.G,positive, guard=close)
-	regiongraphs.delete_bipartite(V.G,positive,negative)
 	new_components = list(nx.connected_components(V.G.subgraph(cutout.unique_list)))
 	changed_list = set(cutout.unique_list) - set.union(*([set([])]+[s for s in original_components if s in new_components]))
 	changed_cutout = indicator(cutout.raw_labels,  changed_list)
 	V.changed[cutout.region] = np.maximum(V.changed[cutout.region], changed_cutout)
 	"""
+	regiongraphs.add_clique(V.G,positive, guard=close)
+	regiongraphs.delete_bipartite(V.G,positive,negative)
 
 def perturb(sample, V, radius=PERTURB_RADIUS):
 	region = tuple([slice(x-y,x+y+1,None) for x,y in zip(sample,radius)])
@@ -179,11 +209,13 @@ def recompute_errors(V, epoch=None):
 		name = "epoch" + str(epoch)
 	h5write(os.path.join(basename,name+"_vertices.h5"),np.array(V.G.nodes()))
 	h5write(os.path.join(basename,name+"_edges.h5"),np.array(V.G.edges()))
-	h5write(os.path.join(basename,name+"_changed.h5"),V.changed)
+	#h5write(os.path.join(basename,name+"_changed.h5"),V.changed)
 
 	print("flattening current seg")
-	h5write(os.path.join(basename,name+"_machine_labels.h5"),flatten(V.G,V.raw_labels))
+	machine_labels = flatten(V.G,V.raw_labels)
+	h5write(os.path.join(basename,name+"_machine_labels.h5"),machine_labels)
 
+	"""
 	print("preparing to recompute errors")
 	pass_errors = np.minimum(V.errors, 1-V.changed)
 	pass_visited = 4*(1 - V.changed)
@@ -192,6 +224,7 @@ def recompute_errors(V, epoch=None):
 	V.errors = reconstruct_utils.unpack(reconstruct_utils.discrim_daemon(*(map(reconstruct_utils.pack,[machine_labels, samples, pass_errors, pass_visited]))))
 	
 	h5write(os.path.join(basename,name+"_errors.h5"),V.errors)
+	"""
 	V.changed = np.zeros(full_size, dtype=np.uint8)
 	V.visited = np.zeros(full_size, dtype=np.uint8)
 	print("done")
@@ -209,11 +242,11 @@ if __name__ == "__main__":
 
 	print("loading files...")
 	vertices = h5read(os.path.join(basename, "vertices.h5"), force=True)
-	edges = h5read(os.path.join(basename, "edges.h5"), force=True)
+	edges = h5read(os.path.join(basename, "mean_edges.h5"), force=True)
 
 	V = Volume(basename,
 			{"image": "image.h5",
-			 "errors": "errors4.h5",
+			 "errors": "errors.h5",
 			 "raw_labels": "raw.h5",
 			 "affinities": "aff.h5",
 			 "human_labels": "proofread.h5",
@@ -230,18 +263,21 @@ if __name__ == "__main__":
 
 	print("done")
 
-	"""
-	full_edges = h5read(os.path.join(basename, "full_raw_edges.h5"), force=True)
+	full_edges = h5read(os.path.join(basename, "full_edges.h5"), force=True)
 	full_G = regiongraphs.make_graph(vertices, full_edges)
+
+	proofread_edges = h5read(os.path.join(basename, "proofread_edges.h5"), force=True)
+	proofread_G = regiongraphs.make_graph(vertices, proofread_edges)
+
 	close=lambda x,y: full_G.has_edge(x,y)
-	"""
-	close = lambda x,y: True
+	#close = lambda x,y: True
 
 	print("sorting samples...")
 	sort_samples(V)
 	print("done")
 
-	datalist=pd.DataFrame([],columns=[])
+	df_segments=pd.DataFrame([],columns=[])
+	df_examples=pd.DataFrame([],columns=[])
 
 	for epoch in xrange(N_EPOCHS):
 		for i in xrange(N_STEPS):
@@ -284,13 +320,9 @@ if __name__ == "__main__":
 				toc()
 
 				tic()
-				visited_cutout = indicator(cutout.raw_labels, bfs(V.G, [V.raw_labels[tuple(pos)]]))
-				subregion = crop_region(patch_size,VISITED_CROP)
-				V.visited[cutout.region][subregion] = np.maximum(V.visited[cutout.region], visited_cutout)[subregion]
-				toc()
-
-				tic()
-				datalist = datalist.append(analyze(cutout,i))
+				df_segments_next, df_examples_next = analyze(cutout,i)
+				df_segments = df_segments.append(df_segments_next)
+				df_examples = df_examples.append(df_examples_next)
 				toc()
 
 				"""
@@ -299,11 +331,18 @@ if __name__ == "__main__":
 				toc()
 				"""
 
+				tic()
+				visited_cutout = indicator(cutout.raw_labels, bfs(V.G, [V.raw_labels[tuple(pos)]]))
+				subregion = crop_region(patch_size,VISITED_CROP)
+				V.visited[cutout.region][subregion] = np.maximum(V.visited[cutout.region], visited_cutout)[subregion]
+				toc()
+
 				print("Committed!")
 			except ReconstructionException as e:
 				print(e)
 				misc_utils.tics=[]
 			if i%100 == 0:
-				datalist.to_pickle("tmp.pickle")
-		#recompute_errors(V,epoch=epoch)
-		#sort_samples(V)
+				df_segments.to_pickle("segments.pickle")
+				df_examples.to_pickle("examples.pickle")
+		recompute_errors(V,epoch=epoch)
+		sort_samples(V)

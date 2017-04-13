@@ -33,7 +33,7 @@ def run_trace(q1,q2,device):
 	os.environ["CUDA_VISIBLE_DEVICES"]=device
 
 	import sys
-	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
+	sys.path.insert(0, os.path.expanduser("~/yacn/nets"))
 	import sparse_vector_labels_inference
 	#import pythonzenity
 	sparse_vector_labels_inference.main_model.restore("~/experiments/sparse_vector_labels/latest.ckpt")
@@ -54,7 +54,7 @@ def run_discrim_online(q1,q2,device):
 	os.environ["CUDA_VISIBLE_DEVICES"]=device
 
 	import sys
-	sys.path.insert(0, os.path.expanduser("~/nets/nets"))
+	sys.path.insert(0, os.path.expanduser("~/yacn/nets"))
 	import discriminate3_online_inference
 	#import pythonzenity
 	discriminate3_online_inference.main_model.restore("~/experiments/discriminate3/latest.ckpt")
@@ -101,6 +101,6 @@ class ComputeDaemon():
 		return self.q2.get()
 
 
-#discrim_daemon = ComputeDaemon(run_recompute_discrim)
 discrim_online_daemon = ComputeDaemon(run_discrim_online,"0")
 trace_daemon = ComputeDaemon(run_trace,"1")
+#discrim_daemon = ComputeDaemon(run_recompute_discrim,"1")
