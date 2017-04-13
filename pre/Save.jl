@@ -1,6 +1,5 @@
 module Save
 using HDF5
-using FixedSizeArrays
 
 export save, load, load_mmap
 immutable Path{T} 
