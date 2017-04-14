@@ -1,4 +1,4 @@
-FFTW.set_num_threads(32)
+FFTW.set_num_threads(56)
 
 function relabel(labels,relabels)
 	return map(i->relabels[i], labels)
@@ -69,7 +69,7 @@ function gen_samples(labels, patch_size; kernel_size=map(x->round(Int,x/2),patch
 	end
 
 	println("$(length(A)) examples collected")
-	return flatten_samples(map(x->reverse(x)-1,A))
+	return shuffle(Tuple{Int,Int,Int}[tuple((reverse(x)-1)...) for x in A])
 end
 
 function stars(shape,samples)
