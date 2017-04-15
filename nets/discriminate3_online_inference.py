@@ -35,7 +35,7 @@ class DiscrimModel(Model):
 
 		config = tf.ConfigProto(
 			allow_soft_placement=True,
-			gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.9),
+			gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.5, allow_growth=True),
 			#log_device_placement=True,
 		)
 		self.sess = tf.Session(config=config)
@@ -81,8 +81,8 @@ args = {
 	"patch_size": tuple(discrim_net3.patch_size_suggestions([2,3,3])[0]),
 	"name": "test",
 }
-pp = pprint.PrettyPrinter(indent=4)
-pp.pprint(args)
+#pp = pprint.PrettyPrinter(indent=4)
+#pp.pprint(args)
 with tf.device("/gpu:0"):
 	main_model = DiscrimModel(**args)
 print("model initialized")

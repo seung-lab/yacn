@@ -167,20 +167,19 @@ def __init__(full_size, checkpoint=None):
 		"coverage": 2,
 		"coverage_crop": 0.125,
 	}
-	pp = pprint.PrettyPrinter(indent=4)
-	pp.pprint(args)
+	#pp = pprint.PrettyPrinter(indent=4)
+	#pp.pprint(args)
 	with tf.device("/cpu:0"):
 		main_model = DiscrimModel(**args)
 	if checkpoint is None:
 		main_model.restore(zenity_workaround())
 	else:
 		main_model.restore(checkpoint)
-	print("model initialized")
 
 if __name__ == '__main__':
 	TRAIN = MultiDataset(
 			[
-				os.path.expanduser("~/mydatasets/3_3_1/"),
+				os.path.expanduser("~/mydatasets/1_1_1/"),
 				#os.path.expanduser("~/mydatasets/golden/"),
 				#os.path.expanduser("~/mydatasets/golden_test/"),
 			],

@@ -36,9 +36,7 @@ class VectorLabelModel(Model):
 		self.nvec_labels = nvec_labels
 
 		config = tf.ConfigProto(
-			gpu_options = tf.GPUOptions(
-				per_process_gpu_memory_fraction=0.9,
-				),
+			gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.5, allow_growth=True),
 			allow_soft_placement=True,
 			#log_device_placement=True,
 		)
@@ -80,7 +78,7 @@ args = {
 	"name": "test",
 }
 
-pp = pprint.PrettyPrinter(indent=4)
-pp.pprint(args)
+#pp = pprint.PrettyPrinter(indent=4)
+#pp.pprint(args)
 main_model = VectorLabelModel(**args)
 #main_model.restore(zenity_workaround())
