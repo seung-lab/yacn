@@ -2,7 +2,7 @@ import tensorflow as tf
 dtype=tf.float32
 
 class SymmetricTanh():
-	def __init__(self,reduction_index=3):
+	def __init__(self,reduction_index=4):
 		self.premultiply = tf.Variable(1.0, dtype=dtype)
 		self.postmultiply = tf.Variable(1.0, dtype=dtype)
 		self.reduction_index=reduction_index
