@@ -48,7 +48,7 @@ class Model():
 					self.summary_writer.add_summary(quick_summary, step)
 					if i % checkpoint_interval == 0:
 						print("checkpointing...")
-						self.saver.save(self.sess, self.logdir + "model" + str(step) + ".ckpt")
+						self.saver.save(self.sess, self.logdir + "model" + str(step) + ".ckpt", write_meta_graph=False)
 						self.summary_writer.add_summary(self.sess.run(self.summary_op, feed_dict={self.iteration_type:0}), step)
 						self.summary_writer.flush()
 						call(["touch",self.logdir+"model"+str(step) + ".ckpt"])
@@ -161,6 +161,16 @@ def static_constant_multivolume(sess,l,*args,**kwargs):
 		gc.collect()
 
 	return MultiVolume(variables,*args,**kwargs) 
+
+class EMA():
+	def __init__(self,decay):
+		self.decay=decay
+		self.val = tf.Variable(0.0)
+	
+	def update(self,x):
+		with tf.control_dependencies([self.val.assign(self.val*self.decay + x*(1-self.decay))]):
+			self.val=tf.identity(self.val)
+
 def random_row(A):
 	index=tf.random_uniform([],minval=0,maxval=static_shape(A)[0],dtype=tf.int32)
 	return A[index,:]
@@ -242,15 +252,6 @@ def subsets(l):
 	else:
 		tmp=subsets(l[1:])
 		return tmp + map(lambda x: [l[0]] + x, tmp)
-
-class RandomRotationPadded():
-	def __init__(self):
-		self.perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2,3,4]), lambda: tf.constant([0,1,3,2,4]))
-		r = tf.random_uniform([], minval=0, maxval=8, dtype=tf.int32)
-		self.rev = tf.case([(tf.equal(r,i), lambda: tf.constant(s,dtype=tf.int32)) for i,s in enumerate(subsets([1,2,3]))],lambda: tf.constant([],dtype=tf.int32),exclusive=True)
-
-	def __call__(self,x):
-		return tf.reshape(tf.transpose(tf.reverse(x, self.rev), perm=self.perm), static_shape(x))
 
 def lrelu(x):
 	return tf.nn.relu(x) - tf.log(-tf.minimum(x,0)+1)

@@ -100,12 +100,14 @@ class VectorLabelModel(Model):
 					human_labels = aug_label(human_labels)
 
 					is_valid = tf.to_float(myvalid[tf.reshape(central_label,[])])
+					#is_valid = tf.Print(is_valid,[is_valid], message="is_valid")
 					central_label_set = tf.scatter_nd(tf.reshape(central_label,[1,1]), [1], [maxlabel])
 
 					#0 means that this label is removed
 					#ensure that the central object is not masked, and also ensure that only valid objects are masked.
 					error_probability = tf.random_uniform([],minval=0.0,maxval=0.75,dtype=tf.float32)
-					masked_label_set = tf.maximum(tf.maximum(tf.to_int32(rand_bool([maxlabel],error_probability)), central_label_set), 1-myvalid)
+					masked_label_set = tf.maximum(tf.to_int32(rand_bool([maxlabel],error_probability)), central_label_set)
+					#masked_label_set = tf.maximum(masked_label_set, 1-myvalid)
 
 					#ensure that zero is masked out
 					#masked_label_set = tf.minimum(masked_label_set, tf.concat(tf.zeros((1,),dtype=tf.int32),tf.ones((maxlabel-1,),dtype=tf.int32)))
@@ -129,20 +131,29 @@ class VectorLabelModel(Model):
 						loss += loss1 + loss2 + loss3
 
 			def training_iteration():
-				optimizer = tf.train.AdamOptimizer(0.001, epsilon=0.1)
+				optimizer = tf.train.AdamOptimizer(0.001, beta1=0.95, beta2=0.9995, epsilon=0.1)
 				train_op = optimizer.minimize(loss, colocate_gradients_with_ops=True)
+
+				ema_loss_train=EMA(decay=0.99)
+				ema_loss_train.update(loss)
+
 				with tf.control_dependencies([train_op]):
 					train_op = tf.group(self.step.assign_add(1), tf.Print(
-						0, [self.step, vol_id, iteration_type, loss],
+						0, [self.step, iteration_type, loss],
 						message="step|iteration_type|loss"))
-					quick_summary_op = tf.summary.merge([
-						tf.summary.scalar("loss_train", loss),
-					])
+				quick_summary_op = tf.summary.merge([
+					tf.summary.scalar("loss_train", loss),
+					tf.summary.scalar("ema_loss_train", ema_loss_train.val),
+				])
 				return train_op, quick_summary_op
 
 			def test_iteration():
+				ema_loss_test=EMA(decay=0.9)
+				ema_loss_test.update(loss)
 				quick_summary_op = tf.summary.merge(
-					[tf.summary.scalar("loss_test", loss)])
+					[tf.summary.scalar("loss_test", loss),
+					tf.summary.scalar("ema_loss_test", ema_loss_test.val),
+						])
 				return tf.no_op(), quick_summary_op
 
 			self.iter_op, self.quick_summary_op = tf.cond(
@@ -169,7 +180,7 @@ class VectorLabelModel(Model):
 			)
 		print(self.sess.run( tf.report_uninitialized_variables( tf.all_variables( ))))
 
-		self.saver = tf.train.Saver(var_list=params_var_list)
+		self.saver = tf.train.Saver(var_list=params_var_list,keep_checkpoint_every_n_hours=2)
 		self.summary_op = summary_op
 	
 	def get_filename(self):
@@ -187,13 +198,13 @@ TRAIN = dataset.MultiDataset(
 			os.path.expanduser("~/mydatasets/1_3_1/"),
 			os.path.expanduser("~/mydatasets/3_1_1/"),
 
-			os.path.expanduser("~/mydatasets/3_2_1/"),
+			os.path.expanduser("~/mydatasets/2_3_1/"),
 		],
 		{
 			"image": "image.h5",
 			"human_labels": "lzf_proofread.h5",
 			"machine_labels": "lzf_mean_agg_tr.h5",
-			"samples": "filtered_samples.h5",
+			"samples": "padded_valid_samples.h5",
 			"valid": "valid.h5",
 		}
 )
@@ -221,12 +232,9 @@ args = {
 #pp = pprint.PrettyPrinter(indent=4)
 #pp.pprint(args)
 main_model = VectorLabelModel(**args)
-main_model.restore(zenity_workaround())
+#main_model.restore("~/experiments/sparse_vector_labels/latest.ckpt")
 
 print("initialized")
-TRAIN=None
-args=None
-gc.collect()
 
 if __name__ == '__main__':
 	main_model.train(nsteps=1000000, checkpoint_interval=3000, test_interval=15)

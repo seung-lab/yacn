@@ -19,6 +19,7 @@ from tensorflow.python.client import timeline
 
 from utils import *
 from dataset import MultiDataset
+import augment
 
 class DiscrimModel(Model):
 	def __init__(self, patch_size, 
@@ -72,7 +73,7 @@ class DiscrimModel(Model):
 						focus=tf.concat([[0],tf.reshape(samples[vol_id,('RAND',0)],(3,)),[0]],0)
 						focus=tf.Print(focus,[vol_id, focus], message="focus", summarize=10)
 				
-						rr=RandomRotationPadded()
+						rr=augment.RandomRotationPadded()
 
 						#1 is correct and 0 is incorrect
 						lies_glimpse = rr(equal_to_centre(full_labels_lies[vol_id,focus]))
@@ -140,24 +141,40 @@ class DiscrimModel(Model):
 				tf.GraphKeys.TRAINABLE_VARIABLES, scope='params')
 
 			def train_op():
-				optimizer = tf.train.AdamOptimizer(0.001, beta1=0.9, epsilon=0.1)
+				optimizer = tf.train.AdamOptimizer(0.0001, beta1=0.95, beta2=0.9995, epsilon=0.1)
 				op = optimizer.minimize(8e5*loss + reconstruction_loss, colocate_gradients_with_ops=True, var_list = var_list)
+
+				ema_loss=EMA(decay=0.99)
+				ema_loss.update(loss)
+
+				ema_reconstruction_loss=EMA(decay=0.99)
+				ema_reconstruction_loss.update(reconstruction_loss)
 
 				with tf.control_dependencies([op]):
 					with tf.control_dependencies([self.step.assign_add(1)]):
 						op = tf.group(
 								tf.Print(0, [tf.identity(self.step), loss], message="step|loss"),
 								)
-								
-						quick_summary_op = tf.summary.merge([
-							tf.summary.scalar("loss", loss),
-							tf.summary.scalar("reconstruction_loss", reconstruction_loss),
-						])
+				quick_summary_op = tf.summary.merge([
+					tf.summary.scalar("loss", loss),
+					tf.summary.scalar("reconstruction_loss", reconstruction_loss),
+					tf.summary.scalar("ema_reconstruction_loss", ema_reconstruction_loss.val),
+					tf.summary.scalar("ema_loss", ema_loss.val),
+				])
 				return op, quick_summary_op
 			def test_op():
+				ema_test_loss=EMA(decay=0.9)
+				ema_test_loss.update(loss)
+
+				ema_test_reconstruction_loss=EMA(decay=0.9)
+				ema_test_reconstruction_loss.update(reconstruction_loss)
 				quick_summary_op = tf.summary.merge([
 							tf.summary.scalar("test_loss", loss),
-							tf.summary.scalar("test_reconstruction_loss", reconstruction_loss)])
+							tf.summary.scalar("test_reconstruction_loss", reconstruction_loss),
+							tf.summary.scalar("ema_test_reconstruction_loss", ema_test_reconstruction_loss.val),
+							tf.summary.scalar("ema_test_loss", ema_test_loss.val),
+							])
+
 				return tf.no_op(), quick_summary_op
 
 			self.iter_op, self.quick_summary_op = tf.cond(tf.equal(self.iteration_type,0),
@@ -198,13 +215,13 @@ TRAIN = MultiDataset(
 			os.path.expanduser("~/mydatasets/1_3_1/"),
 			os.path.expanduser("~/mydatasets/3_1_1/"),
 
-			os.path.expanduser("~/mydatasets/3_2_1/"),
+			os.path.expanduser("~/mydatasets/2_3_1/"),
 		],
 		{
 			"machine_labels": "lzf_mean_agg_tr.h5",
 			"human_labels": "lzf_proofread.h5",
 			"image": "image.h5",
-			"samples": "filtered_samples.h5",
+			"samples": "padded_valid_samples.h5",
 		}
 )
 args = {
@@ -223,4 +240,4 @@ main_model = DiscrimModel(**args)
 main_model.restore("~/experiments/discriminate3/latest.ckpt")
 print("model initialized")
 if __name__ == '__main__':
-	main_model.train(nsteps=100000, checkpoint_interval=3000, test_interval=15)
+	main_model.train(nsteps=1000000, checkpoint_interval=3000, test_interval=15)
