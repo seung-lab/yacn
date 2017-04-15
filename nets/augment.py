@@ -6,7 +6,11 @@ class RandomRotationPadded():
 	def __init__(self):
 		self.perm = tf.cond(rand_bool([]), lambda: tf.constant([0,1,2,3,4]), lambda: tf.constant([0,1,3,2,4]))
 		r = tf.random_uniform([], minval=0, maxval=8, dtype=tf.int32)
-		self.rev = tf.case([(tf.equal(r,i), lambda: tf.constant(s,dtype=tf.int32)) for i,s in enumerate(subsets([1,2,3]))],lambda: tf.constant([],dtype=tf.int32),exclusive=True)
+
+		def rotation_factory(s):
+			return lambda: tf.constant(s,dtype=tf.int32)
+		
+		self.rev = tf.case([(tf.equal(r,i), rotation_factory(s)) for i,s in enumerate(subsets([1,2,3]))],lambda: tf.constant([],dtype=tf.int32),exclusive=True)
 
 	def __call__(self,x):
 		return tf.reshape(tf.transpose(tf.reverse(x, self.rev), perm=self.perm), static_shape(x))
@@ -116,13 +120,14 @@ def default_augmentation():
 	return f_image, f_label
 
 if __name__=='__main__':
-	x=tf.constant(np.reshape(np.array([[range(0,5), range(10,15), range(20,25), range(30,35), range(40,45)] for i in xrange(8)],dtype=np.float32),[1,8,5,5,1]))
+	x=tf.constant(np.reshape(np.array([[range(0+i,5+i), range(10+i,15+i), range(20+i,25+i), range(30+i,35+i), range(40+i,45+i)] for i in xrange(8)],dtype=np.float32),[1,8,5,5,1]))
 
 	t1=ApplyRandomSlice(0.2,MisAlign([3,3]))
 	#t2=MissingSection(0.2)
 	t2 = ApplyRandomChunk(0.5,MisAlign([3,3]))
 	t3 = ApplyRandomSlice(0.2, RandomBlur())
+	rr=RandomRotationPadded()
 
 	print x
 	sess = tf.Session()
-	print np.reshape(sess.run(t3(x)), [8,5,5])
+	print np.reshape(sess.run(rr(t1(x))), [8,5,5])
