@@ -11,11 +11,12 @@ include("filter_samples.jl")
 include("compute_proofreadgraph.jl")
 
 #TODO: Change this to read and write to a cloud filesystem
-function do_prep(basename; patch_size = (318,318,33), ground_truth=false)
+function do_prep(basename; patch_size = (318,318,33), ground_truth=false, compute_full_edges=false)
 	basename=expanduser(basename)
 
 	mean_labels = Save.load(joinpath(basename,"mean_agg_tr.h5"))
 	full_size = size(mean_labels)
+	println(full_size)
 
 	raw = Save.load(joinpath(basename,"raw.h5"))
 	#the sample around a point x is [x-floor(patch_size/2): x-floor(patch_size/2)+patch_size]
@@ -34,10 +35,10 @@ function do_prep(basename; patch_size = (318,318,33), ground_truth=false)
 	@time mean_edges = compute_regiongraph(raw, mean_labels, affinities, threshold=0.3)
 	Save.save(joinpath(basename,"mean_edges.h5"), mean_edges)
 
-	#=
-	full_edges = compute_fullgraph(Batched(), raw, resolution=Int[4,4,40], radius=130, downsample=Int[4,4,1])
-	Save.save(joinpath(basename,"full_edges.h5"), full_edges)
-	=#
+	if compute_full_edges
+		full_edges = compute_fullgraph(Batched(), raw, resolution=Int[4,4,40], radius=130, downsample=Int[4,4,1])
+		Save.save(joinpath(basename,"full_edges.h5"), full_edges)
+	end
 
 	contact_edges = compute_contactgraph(raw)
 	Save.save(joinpath(basename,"contact_edges.h5"), contact_edges)
@@ -69,7 +70,5 @@ function do_prep(basename; patch_size = (318,318,33), ground_truth=false)
 	end
 end
 
-#basename = expanduser(ARGS[1])
-for i in 1:3, j in 1:3
-	do_prep("~/mydatasets/$(i)_$(j)_1", ground_truth=true)
-end
+basename = expanduser(ARGS[1])
+@time do_prep(basename, ground_truth=false)

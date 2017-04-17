@@ -1,10 +1,14 @@
-FFTW.set_num_threads(56)
-
-function relabel(labels,relabels)
-	return map(i->relabels[i], labels)
+FFTW.set_num_threads(4)
+using DataStructures
+function squeeze_labels{T<:Integer,N}(labels::Array{T,N})
+	counter=zero(T)
+	d=DefaultDict{T,T}(()->begin counter += 1; counter end)
+	d[0]=0
+	return map(i->d[i], labels)::Array{T,N}
 end
 
 function gen_weights(labels; M=30, kernel_size=[100,100,20], max_factor=20)
+	labels = squeeze_labels(labels)
 	labels+=1
 	N=maximum(labels)
 	tmp = randn(N,M)
@@ -25,6 +29,7 @@ function gen_weights(labels; M=30, kernel_size=[100,100,20], max_factor=20)
 	indicator = similar(fft_kernel)
 	intermediate = similar(fft_kernel)
 	smoothed = similar(fft_kernel)
+	println("here")
 	for j in 1:M
 		println(j)
 		println("relabelling...")
