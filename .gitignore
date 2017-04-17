@@ -3,4 +3,5 @@
 *.json
 *.html
 *.pickle
+docker/.boto
 cruft

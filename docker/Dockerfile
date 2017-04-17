@@ -27,18 +27,20 @@ RUN add-apt-repository ppa:staticfloat/juliareleases && \
 
 RUN git clone https://github.com/seung-lab/neuroglancer.git /root/neuroglancer
 WORKDIR /root/neuroglancer/python
-RUN git checkout tensorflow
 RUN pip install setuptools Cython wheel numpy
 RUN ln -s /usr/lib/x86_64-linux-gnu/libhdf5_serial.so /usr/lib/x86_64-linux-gnu/libhdf5.so
 ENV HDF5_DIR=/usr/include/hdf5/serial
 RUN pip install -r /root/neuroglancer/python/requirements.txt /root/neuroglancer/python || echo
+ADD .boto /root/
 
 RUN git clone https://github.com/seung-lab/yacn.git /root/yacn
 
 WORKDIR /root/yacn
 
 ENV PYTHONPATH $PYTHONPATH:/root
+RUN echo "push!(LOAD_PATH, \"/root/yacn/pre\")" > /root/.juliarc.jl
 
 RUN pip install -r requirements.txt
 
 RUN julia -e "Pkg.update(); for f in readlines(open(\"REQUIRE\")); Pkg.add(strip(f)); end"
+
