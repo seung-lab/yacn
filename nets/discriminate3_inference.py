@@ -23,7 +23,7 @@ import dataset
 #import pythonzenity
 
 class DiscrimModel(Model):
-	def __init__(self, patch_size, full_size, coverage, coverage_crop
+	def __init__(self, patch_size, coverage, coverage_crop
 				 ):
 
 		self.summaries = []
@@ -51,15 +51,15 @@ class DiscrimModel(Model):
 		init = tf.global_variables_initializer()
 		self.sess.run(init)
 
-		self.ret_placeholder=tf.placeholder(dtype=tf.float32,shape=full_size)
-		self.machine_labels_placeholder=tf.placeholder(dtype=tf.int64,shape=full_size)
-		self.image_placeholder=tf.placeholder(dtype=tf.float32,shape=full_size)
-		self.visited_placeholder=tf.placeholder(dtype=tf.int32,shape=full_size)
+		self.ret_placeholder=tf.placeholder(dtype=tf.float32)
+		self.machine_labels_placeholder=tf.placeholder(dtype=tf.int32)
+		self.image_placeholder=tf.placeholder(dtype=tf.float32)
+		self.visited_placeholder=tf.placeholder(dtype=tf.int16)
 	
-		self.ret = tf.Variable(self.ret_placeholder)
-		self.visited = tf.Variable(self.visited_placeholder)
-		self.machine_labels = tf.Variable(self.machine_labels_placeholder)
-		self.image = tf.Variable(self.image_placeholder)
+		self.ret = tf.Variable(self.ret_placeholder, validate_shape=False)
+		self.visited = tf.Variable(self.visited_placeholder, validate_shape=False)
+		self.machine_labels = tf.Variable(self.machine_labels_placeholder, validate_shape=False)
+		self.image = tf.Variable(self.image_placeholder, validate_shape=False)
 
 		ret_vol = Volume(self.ret, self.padded_patch_size)
 		visited_vol = Volume(self.visited, self.padded_patch_size)
@@ -89,7 +89,7 @@ class DiscrimModel(Model):
 			
 			with tf.control_dependencies([
 					ret_vol.__setitem__(focus,tf.maximum(coverage_mask * otpt * machine_labels_glimpse,ret_vol[focus])), 
-					visited_vol.__setitem__(focus,tf.add(tf.to_int32(coverage_mask * machine_labels_glimpse), visited_vol[focus]))
+					visited_vol.__setitem__(focus,tf.add(tf.cast(coverage_mask * machine_labels_glimpse, tf.int16), visited_vol[focus]))
 					]):
 				self.it = tf.no_op()
 
@@ -97,11 +97,12 @@ class DiscrimModel(Model):
 
 		self.full_array_initializer = tf.variables_initializer([self.ret,self.visited,self.machine_labels,self.image])
 
+		full_size = self.padded_patch_size
 		self.sess.run(self.full_array_initializer, feed_dict={
-			self.machine_labels_placeholder: np.zeros(full_size, dtype=np.int64), 
+			self.machine_labels_placeholder: np.zeros(full_size, dtype=np.int32), 
 			self.image_placeholder: np.zeros(full_size, dtype=np.float32), 
 			self.ret_placeholder: np.zeros(full_size,dtype=np.float32), 
-			self.visited_placeholder: np.zeros(full_size,dtype=np.int32)})
+			self.visited_placeholder: np.zeros(full_size,dtype=np.int16)})
 
 
 		var_list = tf.get_collection(
@@ -120,10 +121,10 @@ class DiscrimModel(Model):
 			visited = np.zeros_like(machine_labels, dtype=np.int32)
 		if type(sample_generator) == np.ndarray:
 			sample_generator = random_sample_generator(sample_generator)
-		machine_labels = dataset.prep("labels64", machine_labels)
+		machine_labels = dataset.prep("labels", machine_labels)
 		image = dataset.prep("image", image)
 		ret = dataset.prep("errors", ret)
-		visited = dataset.prep("machine_labels", visited)
+		visited = dataset.prep("visited", visited)
 
 		self.sess.run(self.full_array_initializer, feed_dict={
 			self.machine_labels_placeholder: machine_labels, 
@@ -159,27 +160,21 @@ def random_sample_generator(samples,k=None):
 	for i in random.sample(range(N),k):
 		yield samples[i,:]
 
-def __init__(full_size, checkpoint=None):
-	global main_model
-	args = {
-		"patch_size": tuple(discrim_net3.patch_size_suggestions([2,3,3])[0]),
-		"full_size": full_size,
-		"coverage": 2,
-		"coverage_crop": 0.125,
-	}
-	#pp = pprint.PrettyPrinter(indent=4)
-	#pp.pprint(args)
-	with tf.device("/cpu:0"):
-		main_model = DiscrimModel(**args)
-	if checkpoint is None:
-		main_model.restore(zenity_workaround())
-	else:
-		main_model.restore(checkpoint)
+args = {
+	"patch_size": tuple(discrim_net3.patch_size_suggestions([2,3,3])[0]),
+	"coverage": 2,
+	"coverage_crop": 0.125,
+}
+
+#pp = pprint.PrettyPrinter(indent=4)
+#pp.pprint(args)
+with tf.device("/cpu:0"):
+	main_model = DiscrimModel(**args)
 
 if __name__ == '__main__':
 	TRAIN = MultiDataset(
 			[
-				os.path.expanduser("~/mydatasets/1_1_1/"),
+				os.path.expanduser("~/mydatasets/3_3_1/"),
 				#os.path.expanduser("~/mydatasets/golden/"),
 				#os.path.expanduser("~/mydatasets/golden_test/"),
 			],
@@ -189,7 +184,7 @@ if __name__ == '__main__':
 				"image": "image.h5",
 			}
 	)
-	__init__(full_size=tuple(TRAIN.machine_labels[0].shape), checkpoint="~/experiments/discriminate3/latest.ckpt")
+	main_model.restore("~/experiments/discriminate3/latest.ckpt")
 
 	dataset.h5write(os.path.join(TRAIN.directories[0], "errors.h5"), 
 			np.squeeze(

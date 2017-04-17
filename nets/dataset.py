@@ -52,6 +52,8 @@ def prep(typ,data):
 		return data.astype(np.int32)
 	elif typ in ["samples"]:
 		return data.astype(np.int32)
+	elif typ in ["visited"]:
+		return data.astype(np.int16)
 
 def autopad(A):
 	if len(A.shape)==3:
