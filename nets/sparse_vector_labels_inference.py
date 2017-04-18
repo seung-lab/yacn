@@ -53,8 +53,11 @@ class VectorLabelModel(Model):
 
 		self.image_feed =tf.placeholder(tf.float32, shape=self.padded_patch_size)
 		self.mask_feed = tf.placeholder(tf.float32, shape=self.padded_patch_size)
+		self.central_feed = tf.placeholder(tf.float32, shape=self.padded_patch_size)
 		self.vector_labels_test = forward(tf.concat([self.image_feed, self.mask_feed],4))
-		self.expansion_test = affinity(extract_central(self.vector_labels_test), self.vector_labels_test)
+
+		central_vector = tf.reduce_sum(self.central_feed * self.vector_labels_test, reduction_indices = [1,2,3], keep_dims=True)/ tf.reduce_sum(self.central_feed, keep_dims=False)
+		self.expansion_test = affinity(central_vector, self.vector_labels_test)
 
 		init = tf.global_variables_initializer()
 		self.sess.run(init)
@@ -64,10 +67,11 @@ class VectorLabelModel(Model):
 	def get_filename(self):
 		return os.path.splitext(os.path.basename(__file__))[0]
 
-	def test(self, image, mask):
+	def test(self, image, mask, central):
 		image = dataset.prep("image",image)
 		mask = dataset.prep("image",mask)
-		ret = self.sess.run(self.expansion_test, feed_dict={self.image_feed: image, self.mask_feed: mask})
+		central = dataset.prep("image",central)
+		ret = self.sess.run(self.expansion_test, feed_dict={self.image_feed: image, self.mask_feed: mask, self.central_feed: central})
 		return ret
 
 patch_size=(33,318,318)

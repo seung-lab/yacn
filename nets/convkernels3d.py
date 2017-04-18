@@ -165,7 +165,7 @@ class ConvKernel3dFactorized(ConvKernel):
 class TransferConnection():
 	def __init__(self,inpt_schema, otpt_schema, connection_schema):
 		if inpt_schema.nfeatures == otpt_schema.nfeatures or inpt_schema.nfeatures==1:
-			self.weights = make_variable([inpt_schema.nfeatures], val=1.0)
+			self.weights = tf.reshape(make_variable([inpt_schema.nfeatures], val=1.0),[1,1,1,1,inpt_schema.nfeatures])
 		else:
 			raise Exception()
 	def __call__(self,x):
