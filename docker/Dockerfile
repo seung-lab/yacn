@@ -25,13 +25,15 @@ RUN add-apt-repository ppa:staticfloat/juliareleases && \
         apt-get update && \
         apt-get install -y julia
 
-RUN git clone https://github.com/seung-lab/neuroglancer.git /root/neuroglancer
-WORKDIR /root/neuroglancer/python
+RUN git clone https://github.com/seung-lab/neuroglancer.git /root/neuroglancer_repo
+WORKDIR /root/neuroglancer_repo/python
 RUN pip install setuptools Cython wheel numpy
 RUN ln -s /usr/lib/x86_64-linux-gnu/libhdf5_serial.so /usr/lib/x86_64-linux-gnu/libhdf5.so
 ENV HDF5_DIR=/usr/include/hdf5/serial
-RUN pip install -r /root/neuroglancer/python/requirements.txt /root/neuroglancer/python || echo
+RUN pip install -r /root/neuroglancer_repo/python/requirements.txt /root/neuroglancer_repo/python || echo
 ADD .boto /root/
+
+RUN pip install tornado sockjs-tornado
 
 RUN git clone https://github.com/seung-lab/yacn.git /root/yacn
 
@@ -44,3 +46,4 @@ RUN pip install -r requirements.txt
 
 RUN julia -e "Pkg.update(); for f in readlines(open(\"REQUIRE\")); Pkg.add(strip(f)); end"
 
+RUN python tasks/pull_latest.py
