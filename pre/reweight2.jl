@@ -1,4 +1,4 @@
-FFTW.set_num_threads(4)
+FFTW.set_num_threads(Sys.CPU_CORES)
 using DataStructures
 function squeeze_labels{T<:Integer,N}(labels::Array{T,N})
 	counter=zero(T)

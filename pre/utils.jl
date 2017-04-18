@@ -22,10 +22,3 @@ function to_indicator(d)
 	return A
 end
 
-function flatten_samples{T<:Vector}(A::Vector{T})
-	A_flat=fill(0,(3,length(A)))
-	for i in 1:length(A)
-		A_flat[:,i]=A[i]
-	end
-	return A_flat
-end

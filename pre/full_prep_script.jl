@@ -1,5 +1,6 @@
-include("Save.jl")
+push!(LOAD_PATH, dirname(@__FILE__))
 using Save
+using VirtualArrays
 using HDF5
 
 include("utils.jl")
@@ -10,22 +11,24 @@ include("compute_fullgraph.jl")
 include("filter_samples.jl")
 include("compute_proofreadgraph.jl")
 
-#TODO: Change this to read and write to a cloud filesystem
 function do_prep(basename; patch_size = (318,318,33), ground_truth=false, compute_full_edges=false)
 	basename=expanduser(basename)
 
-	mean_labels = Save.load(joinpath(basename,"mean_agg_tr.h5"))
-	full_size = size(mean_labels)
+	raw = Save.load(joinpath(basename,"raw.h5"))
+	full_size = size(raw)
 	println(full_size)
 
-	raw = Save.load(joinpath(basename,"raw.h5"))
+	#mean_labels = Save.load(joinpath(basename,"mean_agg_tr.h5"))
+	remap = Save.load("remap.h5")
+	mean_labels = collect(remap_array(raw, remap))
+
 	#the sample around a point x is [x-floor(patch_size/2): x-floor(patch_size/2)+patch_size]
 	central_ranges = [Int(floor(p/2) + 1) : Int(s - p + floor(p/2) + 1) for (p,s) in zip(patch_size, full_size)]
 	println(map(length,central_ranges))
 	println(patch_size)
 	mask = zeros(Int8, full_size)
 	mask[central_ranges...] = 1
-	samples = gen_samples(mean_labels, patch_size, N=400000, mask=mask, M=30)
+	samples = gen_samples(mean_labels, patch_size, N=round(Int,0.0003*length(raw)), mask=mask, M=30)
 	Save.save(joinpath(basename,"samples.h5"), flatten(samples))
 
 	vertices = unique(raw)

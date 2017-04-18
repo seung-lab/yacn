@@ -28,7 +28,7 @@ function compute_contactgraph{T}(raw::Array{T,3})
 	return flat_edges
 end
 
-function compute_regiongraph{T,S}(raw::Array{T,3}, machine_labels::Array{S,3})
+function compute_regiongraph{T,S}(raw::Array{T,3}, machine_labels::Union{Array{S,3},VirtualArray})
 	X,Y,Z=size(raw)
 	edges = Set{Tuple{T,T}}()
 	for k in 1:Z-1, j in 1:Y, i in 1:X
@@ -53,7 +53,6 @@ function compute_regiongraph{T,S}(raw::Array{T,3}, machine_labels::Array{S,3})
 	end
 	return flat_edges
 end
-
 
 #What is our affinities convention?
 function compute_regiongraph{T,S,U}(raw::Array{T,3}, machine_labels::Array{S,3}, affinities::Array{U,4}; threshold=0.3)
