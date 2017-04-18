@@ -60,3 +60,6 @@ def compute_fullgraph(raw, resolution=np.array([4,4,40]), r=100):
 		t2=trees[j]
 		return t1[:count_neighbors](t2,r) > 0
 	return close
+
+def unique_nonzero(A):
+	return filter(lambda x: x!=0, np.unique(A))
