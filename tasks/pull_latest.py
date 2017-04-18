@@ -19,4 +19,4 @@ k = Key(b)
 for path in ["experiments/sparse_vector_labels/latest.ckpt", "experiments/discriminate3/latest.ckpt"]:
 	for extension in ["",".index",".data-00000-of-00001"]:
 		k.key = "jzung/" + path + extension
-		k.get_contents_to_filename("s3_" + path + extension)
+		k.get_contents_to_filename(path + extension)
