@@ -19,8 +19,9 @@ function do_prep(basename; patch_size = (318,318,33), ground_truth=false, comput
 	println(full_size)
 
 	#mean_labels = Save.load(joinpath(basename,"mean_agg_tr.h5"))
-	remap = Save.load("remap.h5")
+	remap = Save.load(joinpath(basename,"remap.h5"))
 	mean_labels = collect(remap_array(raw, remap))
+	Save.save(joinpath(basename,"mean_labels.h5"), mean_labels)
 
 	#the sample around a point x is [x-floor(patch_size/2): x-floor(patch_size/2)+patch_size]
 	central_ranges = [Int(floor(p/2) + 1) : Int(s - p + floor(p/2) + 1) for (p,s) in zip(patch_size, full_size)]
