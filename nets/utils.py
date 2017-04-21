@@ -112,6 +112,30 @@ class Volume():
 			corner = tf.unstack(corner)
 			return tf.stop_gradient(A[tuple([slice(corner[i],corner[i]+patch_size[i]) for i in xrange(len(patch_size))])].assign(val))
 	
+class NpVolume():
+	def __init__(self, A, patch_size,indexing='CENTRAL'):
+		self.A=A
+		self.patch_size=patch_size
+		self.indexing=indexing
+
+	def focus_to_slices(self, focus):
+		patch_size = self.patch_size
+		focus = np.array(focus,dtype=np.int32)
+		if self.indexing == 'CENTRAL':
+			corner = np.array(focus) - np.array([x/2 for x in patch_size],dtype=np.int32)
+		elif self.indexing =='CORNER':
+			corner = focus
+		else:
+			raise Exception("bad indexing scheme")
+		ret = tuple(slice(c,c+p) for c,p in zip(corner,patch_size))
+		return ret
+
+	def __getitem__(self, focus):
+		return self.A[self.focus_to_slices(focus)]
+
+	def __setitem__(self, focus, val):
+		self.A[self.focus_to_slices(focus)] = val
+
 class MultiVolume():
 	def __init__(self, As, patch_size, indexing = 'CENTRAL'):
 		self.As=map(lambda A: Volume(A,patch_size,indexing=indexing),As)
