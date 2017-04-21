@@ -4,6 +4,7 @@ import time
 import h5py
 import numpy as np
 import scipy.spatial as sp
+import networkx as nx
 import numpy as np
 files = []
 def h5read(filename, force=False):
@@ -63,3 +64,19 @@ def compute_fullgraph(raw, resolution=np.array([4,4,40]), r=100):
 
 def unique_nonzero(A):
 	return filter(lambda x: x!=0, np.unique(A))
+
+
+def flatten(G, raw, dense=True):
+	components = nx.connected_components(G)
+	d={}
+	for i,nodes in enumerate(components,1):
+		for node in nodes:
+			d[node]=i
+	d[0]=0
+	
+	if dense:
+		mp = np.arange(0,max(d.keys())+1,dtype=np.int32)
+		mp[d.keys()] = d.values()
+		return mp[raw]
+	else:
+		return np.vectorize(d.get)(raw)

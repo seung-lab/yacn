@@ -18,6 +18,7 @@ from reconstruct import *
 from misc_utils import *
 
 import scipy.ndimage.measurements as measurements
+import random
 
 
 patch_size=[33,318,318]
@@ -29,6 +30,25 @@ neuroglancer.server.global_server_args['bind_address']='seung-titan02.pni.prince
 neuroglancer.server.global_server_args['bind_port']=80
 neuroglancer.server.global_bind_port2=9100
 neuroglancer.volume.ENABLE_MESHES=True
+
+def random_shader():
+	x=random.random()
+	y=random.random()
+	z=random.random()
+	s=x+y+z
+	x=1.0-x/s
+	y=1.0-y/s
+	z=1.0-z/s
+	return """void main() {{
+			  emitRGBA(
+					vec4({}*toNormalized(getDataValue()),
+					{}*toNormalized(getDataValue()),
+					{}*toNormalized(getDataValue()),
+					toNormalized(getDataValue())
+						 )
+					  );
+			}}
+			""".format(x,y,z)
 
 def get_focus():
 	return map(int, rev(viewer.state['navigation']['pose']['position']['voxelCoordinates']))
@@ -48,7 +68,7 @@ def set_selection(segments,append=False,expand=True):
 	viewer.state['layers']['raw_labels']['segments'] = segments
 	print(viewer.state['layers']['raw_labels']['segments'])
 	viewer.broadcast()
-	#draw_edges(V.G.subgraph(segments))
+	draw_edges(V.G.subgraph(segments))
 
 def set_focus(pos):
 	global cutout
@@ -75,7 +95,7 @@ def trace():
 
 	global counter
 	counter += 1
-	viewer.add(data=cutout.traced, volume_type='image', name='trace'+str(counter), voxel_size=rev(resolution), offset=rev([(cutout.pos[i]-patch_size[i]/2)*resolution[i] for i in xrange(3)]))
+	viewer.add(data=cutout.traced, volume_type='image', name='trace'+str(counter), voxel_size=rev(resolution), offset=rev([(cutout.pos[i]-patch_size[i]/2)*resolution[i] for i in xrange(3)]), shader=random_shader())
 	l=viewer.layers[-1]
 	viewer.register_volume(l.volume)
 	viewer.state['layers']['trace'+str(counter)]=l.get_layer_spec(viewer.get_server_url())
@@ -164,11 +184,11 @@ neuroglancer.set_static_content_source(url='http://seung-titan02.pni.princeton.e
 basename=os.path.expanduser("~/mydatasets/3_3_1/")
 print("loading files...")
 vertices = h5read(os.path.join(basename, "vertices.h5"), force=True)
-edges = h5read(os.path.join(basename, "mean_edges.h5"), force=True)
+edges = h5read(os.path.join(basename, "epoch1_edges.h5"), force=True)
 
 V = Volume(basename,
 		{"image": "image.h5",
-		 "errors": "errors.h5",
+		 "errors": "epoch1_errors.h5",
 		 "raw_labels": "raw.h5",
 		 "affinities": "aff.h5",
 		 "valid_list": "valid.h5",
@@ -177,21 +197,23 @@ V = Volume(basename,
 		 #"human_labels": "proofread.h5",
 		 "changed": np.zeros(full_size, dtype=np.int32),
 		 "valid": set([]),
+		 "glial": set([]),
 		 "G": regiongraphs.make_graph(vertices,edges),
 		 "samples": h5read(os.path.join(basename, "samples.h5"), force=True),
 		 })
 V.errors = V.errors[:]
-glial_list=set(bfs(V.G, [2]))
+V.full_size=V.errors.shape
+
 """
 import read_otpt
 n=0
-l=read_otpt.axon_splits
+l=read_otpt.dend_splits
 def next_error():
 	global n
 	set_selection([l[n% len(l)]])
 	n=n+1
-
 """
+
 print("done")
 
 #graph_server_url=graph_server.start_server(V.G)

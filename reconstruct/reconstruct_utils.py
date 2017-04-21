@@ -11,12 +11,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 class FileArray(object):
 	def __init__(self, A):
-		self.filename = "/tmp/" + str(uuid.uuid4().hex) + ".h5"
+		self.filename = "/tmp_ram/" + str(uuid.uuid4().hex) + ".h5"
 		misc_utils.h5write(self.filename, A)
 	
 	def get(self):
 		print("reading from " + self.filename)
-		return misc_utils.h5read(self.filename,force=True)
+		tmp = misc_utils.h5read(self.filename,force=True)
+		os.remove(self.filename)
+		return tmp
 def unpack(A):
 	if type(A) == FileArray:
 		return A.get()
@@ -60,13 +62,13 @@ def run_discrim_online(q1,q2,device):
 def run_recompute_discrim(q1,q2,device):
 	import os
 	os.environ["CUDA_VISIBLE_DEVICES"]=device
-	import yacn.nets.discriminate3_inference as discriminate3_inference
-	discriminate3_inference.main_model.restore("~/experiments/discriminate3/latest.ckpt")
+	import yacn.nets.discriminate3_online_inference as inference
+	inference.main_model.restore("~/experiments/discriminate3/latest.ckpt")
 	while True:
 		try:
 			image, seg, samples, err, visited = map(unpack,q1.get())
 			X,Y,Z=np.shape(seg)
-			q2.put(np.reshape(discriminate3_inference.main_model.inference(image,seg,samples, visited=visited,ret=err), [X,Y,Z]))
+			q2.put(pack(np.reshape(inference.main_model.inference(image,seg,samples, visited=visited,ret=err), [X,Y,Z])))
 		except Exception as e:
 			print(e)
 

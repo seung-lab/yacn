@@ -22,10 +22,12 @@ DUST_THRESHOLD=[x/2 for x in patch_size]
 CENTRAL_CROP = 0.33333
 VISITED_CROP = 0.33333
 ERRORS_CROP = 0.15
-N_EPOCHS = 3
-N_STEPS = 100
+START_EPOCH = 3
+N_EPOCHS = 1
+N_STEPS = 18000
 GLOBAL_EXPAND = False
 ERROR_THRESHOLD=0.5
+COST_BENEFIT_RATIO=2
 
 class ReconstructionException(Exception):
 	pass
@@ -39,6 +41,8 @@ class Volume():
 			else:
 				setattr(self, k, v)
 
+
+
 class SubVolume():
 	def __init__(self, parent, region):
 		self.parent = parent
@@ -51,12 +55,19 @@ class SubVolume():
 			subregion = crop_region(patch_size, CENTRAL_CROP)
 			self.central_unique_list = filter(lambda x: x!=0, np.unique(self.raw_labels[subregion]))
 		elif name == "G":
-			self.G = self.parent.G.subgraph(self.unique_list)
+			if GLOBAL_EXPAND:
+				self.G = self.parent.G
+			else:
+				self.G = self.parent.G.subgraph(self.unique_list)
 		elif name == "local_human_labels":
 			proofread_G = self.parent.proofread_G.subgraph(self.unique_list)
 			tic()
-			self.local_human_labels = rasterize(proofread_G, self.raw_labels)
+			self.local_human_labels = flatten(proofread_G, self.raw_labels)
 			toc("local labels")
+
+		elif name == 'current_object':
+			central_segments = bfs(self.G,[self.raw_labels[tuple([(x.stop-x.start)/2 for x in self.region])]])
+			self.current_object = indicator(self.raw_labels,central_segments)
 		else:
 			setattr(self, name, getattr(self.parent,name)[self.region])
 		return getattr(self,name)
@@ -71,14 +82,6 @@ class SubVolume():
 
 		return additional_segments
 
-def rasterize(G,raw):
-	components=nx.connected_components(G)
-	d={}
-	for i,nodes in enumerate(components,1):
-		for node in nodes:
-			d[node]=i
-	d[0]=0
-	return np.vectorize(d.get)(raw)
 
 def get_region(V,pos):
 	full_size = V.full_size
@@ -104,6 +107,7 @@ def analyze(cutout,example_id):
 	truth = measurements.mean(cutout.local_human_labels[np.unravel_index(np.argmax(cutout.traced),cutout.raw_labels.shape)]==cutout.local_human_labels, *args)
 	volumes = measurements.sum(np.ones_like(cutout.raw_labels), *args)
 	histogram_list = list(ndimage.histogram(cutout.traced, 0, 1, 10, *args))
+	histogram = np.histogram(crop(cutout.traced, CENTRAL_CROP), bins=10)
 	toc("compute statistics")
 
 
@@ -120,6 +124,8 @@ def analyze(cutout,example_id):
 	old_errors_cutout = crop(cutout.errors * new_obj, ERRORS_CROP)
 	#d_error = crop(new_errors_cutout,ERRORS_CROP) - crop(old_errors_cutout,ERRORS_CROP)
 	#print(np.histogram(d_error, bins=20, range=(-1.0,1.0)))
+
+	satisfaction = np.sum(crop(np.abs(cutout.current_object - cutout.traced), CENTRAL_CROP))
 	toc("computing change in error")
 
 	guess_margin = np.min(np.append(guess[guess > 0.5],1)) - np.max(np.append(guess[guess <= 0.5],0))
@@ -143,59 +149,52 @@ def analyze(cutout,example_id):
 				"err_max": [np.max(new_errors_cutout)],
 				"err_min": [np.min(new_errors_cutout)],
 				"err_mean": [np.mean(new_errors_cutout)],
+				"satisfaction": [satisfaction],
+				"histogram": [histogram],
+				"example_id": [example_id]
 			}
 			)
 	return df1, df2
 
-def commit(cutout, low_threshold=LOW_THRESHOLD, high_threshold=HIGH_THRESHOLD, close = lambda x,y: True):
+def commit(cutout, low_threshold=LOW_THRESHOLD, high_threshold=HIGH_THRESHOLD, cost_benefit_ratio = COST_BENEFIT_RATIO, close = lambda x,y: True, force=False):
 	V=cutout.parent
 	unique_list = cutout.central_unique_list
 
 
 	traced_list = measurements.mean(cutout.traced, cutout.raw_labels, unique_list)
+	current_list = measurements.mean(cutout.current_object, cutout.raw_labels, unique_list)
+	volumes = measurements.sum(np.ones_like(cutout.current_object), cutout.raw_labels, unique_list)
+
+	positive_indices = [i for i in xrange(len(unique_list)) if traced_list[i]>high_threshold]
+	uncertain_indices = [i for i in xrange(len(unique_list)) if low_threshold <= traced_list[i] <= high_threshold]
+	negative_indices = [i for i in xrange(len(unique_list)) if traced_list[i]<low_threshold]
+
+	cost = sum([volumes[i]*max(traced_list[i],1-traced_list[i]) for i in uncertain_indices]) + \
+		sum([volumes[i]*traced_list[i] for i in negative_indices]) + \
+		sum([volumes[i]*(1-traced_list[i]) for i in positive_indices])
+	benefit = sum([abs(volumes[i]*(traced_list[i]-current_list[i])) for i in positive_indices + negative_indices])
 	
-	if not all([x < low_threshold or x > high_threshold for x in traced_list]):
+	if not (len(uncertain_indices)==0 or benefit > cost_benefit_ratio*cost or force):
 		raise ReconstructionException("not confident")
 
-	#print(zip(traced_list, unique_list))
-	positive = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]>high_threshold]
-	negative = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]<low_threshold]
+	split_point = (high_threshold + low_threshold)/2
+	rounded_positive = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i] > split_point]
+	rounded_negative = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i] <= split_point]
 
-	for l in positive:
-		if l in V.valid:
-			raise ReconstructionException("blocking merge to valid segment")
+	if not V.valid.isdisjoint(rounded_positive):
+		raise ReconstructionException("blocking merge to valid segment")
 
-	#if 2 in bfs(V.G,positive):
-	#	raise ReconstructionException("blocking merge to glia")
-	#print(positive)
-	#print(negative)
+	if not V.glial.isdisjoint(bfs(V.G,rounded_positive)):
+		raise ReconstructionException("blocking merge to glial cell")
 
-
-	"""
 	original_components = list(nx.connected_components(V.G.subgraph(cutout.unique_list)))
+	regiongraphs.add_clique(V.G,rounded_positive, guard=close)
+	regiongraphs.delete_bipartite(V.G,rounded_positive,rounded_negative)
 	new_components = list(nx.connected_components(V.G.subgraph(cutout.unique_list)))
 	changed_list = set(cutout.unique_list) - set.union(*([set([])]+[s for s in original_components if s in new_components]))
 	changed_cutout = indicator(cutout.raw_labels,  changed_list)
 	V.changed[cutout.region] = np.maximum(V.changed[cutout.region], changed_cutout)
-	"""
-	regiongraphs.add_clique(V.G,positive, guard=close)
-	regiongraphs.delete_bipartite(V.G,positive,negative)
-
-def commit_merge(cutout, low_threshold=LOW_THRESHOLD, high_threshold=HIGH_THRESHOLD, close = lambda x,y: True):
-	V=cutout.parent
-
-	local_labels = rasterize(cutout.G, cutout.raw_labels)
-	unique_list = unique_nonzero(crop(local_labels, CENTRAL_CROP))
-
-	traced_list = measurements.mean(cutout.traced, local_labels, unique_list)
-
-	if not all([x < low_threshold or x > high_threshold for x in traced_list]):
-		raise ReconstructionException("not confident")
-
-	positive = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]>high_threshold]
-	negative = [unique_list[i] for i in xrange(len(unique_list)) if traced_list[i]<low_threshold]
-
-	regiongraphs.add_clique(V.G,positive, guard=close)
+	return len(changed_list) > 0
 
 def perturb(sample, V, radius=PERTURB_RADIUS):
 	region = tuple([slice(x-y,x+y+1,None) for x,y in zip(sample,radius)])
@@ -205,28 +204,15 @@ def perturb(sample, V, radius=PERTURB_RADIUS):
 	tmp=np.unravel_index(patch.argmax(),patch.shape)
 	return [t+x-y for t,x,y in zip(tmp,sample,radius)]
 
-def flatten(G, raw):
-	components = nx.connected_components(G)
-	d={}
-	for i,nodes in enumerate(components,1):
-		for node in nodes:
-			d[node]=i
-	d[0]=0
-	
-	mp = np.arange(0,max(d.keys())+1,dtype=np.int32)
-	mp[d.keys()] = d.values()
-	return mp[raw]
-	#return np.vectorize(d.get)(raw)
-
 def recompute_errors(V):
 	print("recomputing errors")
 	tic()
 	pass_errors = np.minimum(V.errors, 1-V.changed)
 	pass_visited = 2*(1 - V.changed)
-	machine_labels = flatten(V.G,V.raw_labels)
- 	samples = np.array(filter(lambda i: V.visited[i[0],i[1],i[2]]==0, V.samples))
+	V.machine_labels = flatten(V.G,V.raw_labels)
+ 	samples = np.array(filter(lambda i: V.changed[i[0],i[1],i[2]]>0, V.samples))
 
-	packed = map(reconstruct_utils.pack,[V.image[:], machine_labels, samples, pass_errors, pass_visited])
+	packed = map(reconstruct_utils.pack,[V.image[:], V.machine_labels, samples, pass_errors, pass_visited])
 	V.errors = reconstruct_utils.unpack(reconstruct_utils.discrim_daemon(*packed))
 	toc("done recomputing errors")
 
@@ -234,32 +220,32 @@ def sort_samples(V):
 	nsamples = V.samples.shape[0]
 	weights = V.errors[[V.samples[:,0],V.samples[:,1],V.samples[:,2]]]
 	print(np.histogram(weights, bins=20))
-	perm = np.argsort(weights)[::-1]
+	perm = np.argsort(weights, kind='mergesort')[::-1]
 	V.samples=V.samples[perm,:]
 	V.weights=weights[perm]
 
-def reconstruct_volume(V, dry_run = False, analyze_run = False):
+def reconstruct_volume(V, dry_run = False, analyze_run = False, log=True):
 	if analyze_run:
 		df_segments=pd.DataFrame([],columns=[])
 		df_examples=pd.DataFrame([],columns=[])
 
 	V.full_size = V.image.shape
-	V.changed = np.zeros(V.full_size, dtype=np.uint8)
-	V.visited = np.zeros(V.full_size, dtype=np.uint8)
 	V.errors = V.errors[:]
 	V.samples = V.samples[:]
 	V.edges = V.edges[:]
 	V.vertices = V.vertices[:]
 	V.G = regiongraphs.make_graph(V.vertices,V.edges)
 	V.full_G = regiongraphs.make_graph(V.vertices, V.full_edges)
+	V.changed_list = []
 	close=lambda x,y: V.full_G.has_edge(x,y)
 
 	if analyze_run:
-		proofread_edges = h5read(os.path.join(basename, "proofread_edges.h5"), force=True)
-		proofread_G = regiongraphs.make_graph(vertices, proofread_edges)
+		proofread_edges = h5read(os.path.join(V.directory, "proofread_edges.h5"), force=True)
+		V.proofread_G = regiongraphs.make_graph(V.vertices, proofread_edges)
 
-	close=lambda x,y: V.full_G.has_edge(x,y)
-	for epoch in xrange(N_EPOCHS):
+	for epoch in xrange(START_EPOCH, START_EPOCH+N_EPOCHS):
+		V.changed = np.zeros(V.full_size, dtype=np.uint8)
+		V.visited = np.zeros(V.full_size, dtype=np.uint8)
 		sort_samples(V)
 		n_errors = len(V.weights)-np.searchsorted(V.weights[::-1],0.5)
 		print(str(n_errors) + " errors")
@@ -272,49 +258,50 @@ def reconstruct_volume(V, dry_run = False, analyze_run = False):
 				cutout=SubVolume(V,region)
 				if (V.visited[tuple(pos)] > 0):
 					raise ReconstructionException("Already visited here")
-				toc()
+				toc("cutout")
 
+				tic()
 				#check if segment leaves window. If not, don't grow it.
 				central_segment = bfs(cutout.G,[V.raw_labels[tuple(pos)]])
 				central_segment_mask = indicator(cutout.raw_labels,central_segment)
 				central_segment_bbox = ndimage.find_objects(central_segment_mask, max_label=1)[0]
 				if all([x.stop-x.start < y for x,y in zip(central_segment_bbox,DUST_THRESHOLD)]):
 					raise ReconstructionException("dust; not growing")
+				toc("dust check")
 				
 				tic()
-				if GLOBAL_EXPAND:
-					g = V.G
-				else:
-					g = cutout.G
-				current_segments = bfs(g,[V.raw_labels[tuple(pos)]]+cutout.local_errors(threshold=ERROR_THRESHOLD))
-				toc()
+				current_segments = bfs(cutout.G,[V.raw_labels[tuple(pos)]]+cutout.local_errors(threshold=ERROR_THRESHOLD))
+				toc("select neighbours")
 
 				tic()
-				mask_cutout=indicator(cutout.raw_labels,current_segments)
-				central = indicator(cutout.raw_labels,[V.raw_labels[tuple(pos)]])
-				toc()
+				cutout.mask=indicator(cutout.raw_labels,current_segments)
+				cutout.central_supervoxel = indicator(cutout.raw_labels,[V.raw_labels[tuple(pos)]])
+				cutout.current_object
+				toc("gen masks")
 
 				tic()
-				cutout.traced = reconstruct_utils.trace_daemon(cutout.image, mask_cutout, central)
-				toc()
+				cutout.traced = reconstruct_utils.trace_daemon(cutout.image, cutout.current_object, cutout.central_supervoxel)
+				toc("tracing")
 
 				if analyze_run:
 					tic()
 					df_segments_next, df_examples_next = analyze(cutout,i)
 					df_segments = df_segments.append(df_segments_next)
 					df_examples = df_examples.append(df_examples_next)
-					toc()
+					toc("analysis")
 
 				if not dry_run:
 					tic()
-					commit(cutout, close=close)
-					toc()
+					tmp=commit(cutout, close=close)
+					if tmp:
+						V.changed_list.append(V.samples[i:i+1,:])
+					toc("commit")
 
 				tic()
-				visited_cutout = indicator(cutout.raw_labels, bfs(V.G, [V.raw_labels[tuple(pos)]]))
+				visited_cutout = indicator(cutout.raw_labels, bfs(cutout.G, [V.raw_labels[tuple(pos)]]))
 				subregion = crop_region(patch_size,VISITED_CROP)
 				V.visited[cutout.region][subregion] = np.maximum(V.visited[cutout.region], visited_cutout)[subregion]
-				toc()
+				toc("recording visit")
 
 				print("Committed!")
 			except ReconstructionException as e:
@@ -324,29 +311,35 @@ def reconstruct_volume(V, dry_run = False, analyze_run = False):
 			if analyze_run and i%100 == 0:
 				df_segments.to_pickle("segments.pickle")
 				df_examples.to_pickle("examples.pickle")
-		if epoch < N_EPOCHS-1:
-			recompute_errors(V)
-			V.changed = np.zeros(V.full_size, dtype=np.uint8)
-			V.visited = np.zeros(V.full_size, dtype=np.uint8)
+		if log:
+			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_edges.h5"), V.G.edges())
+			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_changed.h5"), V.changed)
+			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_changed_list.h5"), np.concatenate(V.changed_list,axis=0))
+		recompute_errors(V)
+		if log:
+			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_machine_labels.h5"), V.machine_labels)
+			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_errors.h5"), V.errors)
 	return V.G.edges()
 
 if __name__ == "__main__":
 	#basename = sys.argv[1]
-	basename=os.path.expanduser("~/mydatasets/3_3_1/")
+	basename=os.path.expanduser("~/mydatasets/golden/")
 
 	print("loading files...")
 	V = Volume(basename,
 			{"image": "image.h5",
-			 "errors": "errors.h5",
+			 "errors": "epoch2_errors.h5",
 			 "raw_labels": "raw.h5",
 			 "affinities": "aff.h5",
 			 #"human_labels": "proofread.h5",
 			 "vertices": "vertices.h5",
-			 "edges": "mean_edges.h5",
+			 "edges": "epoch2_edges.h5",
 			 "full_edges": "full_edges.h5",
 			 "valid": set([]),
+			 "glial": set([2]),
 			 "samples": "samples.h5",
 			 })
 	print("done")
-	reconstruct_volume(V)
+	reconstruct_volume(V,dry_run=False,analyze_run=False, log=True)
+	#edges = h5write(os.path.join(basename,"revised_edges.h5"),reconstruct_volume(V))
 
