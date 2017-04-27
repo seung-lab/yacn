@@ -15,8 +15,6 @@ function do_prep(in_dir, out_dir; patch_size = (318,318,33), ground_truth=false,
 	load = f->Save.load(joinpath(in_dir, f))
 	save = (f,x)->Save.save(joinpath(out_dir,f),x)
 
-	basename=expanduser(basename)
-
 	raw = load("raw.h5")
 	full_size = size(raw)
 	println(full_size)
