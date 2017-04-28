@@ -242,12 +242,13 @@ def sort_samples(V):
 	V.samples=V.samples[perm,:]
 	V.weights=weights[perm]
 
-def reconstruct_volume(V, dry_run = False, analyze_run = False, logdir=True):
-	if not os.path.exists(logdir):
-		os.makedirs(logdir)
-	with open(os.path.join(logdir,"params"),'w') as f:
-		for x in params:
-			print(x + ": " + str(params[x]), file=f)
+def reconstruct_volume(V, dry_run = False, analyze_run = False, logdir=None):
+	if logdir is not None:
+		if not os.path.exists(logdir):
+			os.makedirs(logdir)
+		with open(os.path.join(logdir,"params"),'w') as f:
+			for x in params:
+				print(x + ": " + str(params[x]), file=f)
 
 	if analyze_run:
 		df_segments=pd.DataFrame([],columns=[])
