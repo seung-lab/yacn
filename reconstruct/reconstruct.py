@@ -359,7 +359,7 @@ def reconstruct_volume(V, dry_run = False, analyze_run = False, logdir=None):
 		if logdir is not None:
 			h5write(os.path.join(logdir,"epoch"+str(epoch)+"_machine_labels.h5"), V.machine_labels)
 			h5write(os.path.join(logdir,"epoch"+str(epoch)+"_errors.h5"), V.errors)
-	return V.G.edges()
+	return np.array(V.G.edges())
 
 def reconstruct_wrapper(image, errors, watershed, affinities, samples, vertices, edges, full_edges, valid=set([]), glial=set([]), dendrite=set([])):
 	V=Volume("", {
