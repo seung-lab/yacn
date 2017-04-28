@@ -9,25 +9,32 @@ import pandas as pd
 import misc_utils
 import sys
 import traceback
+from datetime import datetime
 from misc_utils import *
 
 import os
 import os.path
 
-PERTURB_RADIUS=(1,15,15)
-patch_size=[33,318,318]
-LOW_THRESHOLD=0.1
-HIGH_THRESHOLD=0.9
-DUST_THRESHOLD=[x/2 for x in patch_size]
-CENTRAL_CROP = 0.33333
-VISITED_CROP = 0.33333
-ERRORS_CROP = 0.15
-START_EPOCH = 3
-N_EPOCHS = 1
-N_STEPS = 18000
-GLOBAL_EXPAND = False
-ERROR_THRESHOLD=0.5
-COST_BENEFIT_RATIO=2
+params = {
+'PERTURB_RADIUS': (1,15,15),
+'patch_size': [33,318,318],
+'LOW_THRESHOLD': 0.1,
+'HIGH_THRESHOLD': 0.9,
+'DUST_THRESHOLD': [8,78,78],
+'CENTRAL_CROP': 0.33333,
+'VISITED_CROP': 0.33333,
+'ERRORS_CROP': 0.15,
+'N_EPOCHS': 4,
+'N_STEPS': 30000,
+'GLOBAL_EXPAND': False,
+'ERROR_THRESHOLD': 0.5,
+'COST_BENEFIT_RATIO': 2,
+'PARENT': "",
+'RANDOMIZE_BATCH': 1000,
+}
+print(params)
+for x in params:
+	globals()[x]=params[x]
 
 class ReconstructionException(Exception):
 	pass
@@ -41,8 +48,6 @@ class Volume():
 			else:
 				setattr(self, k, v)
 
-
-
 class SubVolume():
 	def __init__(self, parent, region):
 		self.parent = parent
@@ -50,10 +55,10 @@ class SubVolume():
 	
 	def __getattr__(self, name):
 		if name == "unique_list":
-			self.unique_list = filter(lambda x: x!=0, np.unique(self.raw_labels))
+			self.unique_list = unique_nonzero(self.raw_labels)
 		elif name == "central_unique_list":
 			subregion = crop_region(patch_size, CENTRAL_CROP)
-			self.central_unique_list = filter(lambda x: x!=0, np.unique(self.raw_labels[subregion]))
+			self.central_unique_list = unique_nonzero(self.raw_labels[subregion])
 		elif name == "G":
 			if GLOBAL_EXPAND:
 				self.G = self.parent.G
@@ -173,8 +178,14 @@ def commit(cutout, low_threshold=LOW_THRESHOLD, high_threshold=HIGH_THRESHOLD, c
 		sum([volumes[i]*traced_list[i] for i in negative_indices]) + \
 		sum([volumes[i]*(1-traced_list[i]) for i in positive_indices])
 	benefit = sum([abs(volumes[i]*(traced_list[i]-current_list[i])) for i in positive_indices + negative_indices])
+	"""
+	cost = sum([volumes[i] * traced_list[i]*(1-traced_list[i]) for i in xrange(len(unique_list))])
+	benefit = sum([abs(volumes[i]*(round(traced_list[i])-current_list[i])) for i in xrange(len(unique_list))])
+	"""
+	print("cost " + str(cost))
+	print("benefit " + str(benefit))
 	
-	if not (len(uncertain_indices)==0 or benefit > cost_benefit_ratio*cost or force):
+	if not (len(uncertain_indices)==0 or (cost_benefit_ratio is not None and benefit > cost_benefit_ratio * cost) or force):
 		raise ReconstructionException("not confident")
 
 	split_point = (high_threshold + low_threshold)/2
@@ -184,8 +195,11 @@ def commit(cutout, low_threshold=LOW_THRESHOLD, high_threshold=HIGH_THRESHOLD, c
 	if not V.valid.isdisjoint(rounded_positive):
 		raise ReconstructionException("blocking merge to valid segment")
 
-	if not V.glial.isdisjoint(bfs(V.G,rounded_positive)):
+	full_segment = bfs(V.G, rounded_positive)
+	if not V.glial.isdisjoint(full_segment):
 		raise ReconstructionException("blocking merge to glial cell")
+	if len(V.dendrite & full_segment) > 2:
+		raise ReconstructionException("blocking merge of two dendritic trunks")
 
 	original_components = list(nx.connected_components(V.G.subgraph(cutout.unique_list)))
 	regiongraphs.add_clique(V.G,rounded_positive, guard=close)
@@ -194,6 +208,10 @@ def commit(cutout, low_threshold=LOW_THRESHOLD, high_threshold=HIGH_THRESHOLD, c
 	changed_list = set(cutout.unique_list) - set.union(*([set([])]+[s for s in original_components if s in new_components]))
 	changed_cutout = indicator(cutout.raw_labels,  changed_list)
 	V.changed[cutout.region] = np.maximum(V.changed[cutout.region], changed_cutout)
+
+	if not GLOBAL_EXPAND:
+		cutout.G = V.G.subgraph(cutout.unique_list)
+
 	return len(changed_list) > 0
 
 def perturb(sample, V, radius=PERTURB_RADIUS):
@@ -224,7 +242,13 @@ def sort_samples(V):
 	V.samples=V.samples[perm,:]
 	V.weights=weights[perm]
 
-def reconstruct_volume(V, dry_run = False, analyze_run = False, log=True):
+def reconstruct_volume(V, dry_run = False, analyze_run = False, logdir=True):
+	if not os.path.exists(logdir):
+		os.makedirs(logdir)
+	with open(os.path.join(logdir,"params"),'w') as f:
+		for x in params:
+			print(x + ": " + str(params[x]), file=f)
+
 	if analyze_run:
 		df_segments=pd.DataFrame([],columns=[])
 		df_examples=pd.DataFrame([],columns=[])
@@ -243,103 +267,142 @@ def reconstruct_volume(V, dry_run = False, analyze_run = False, log=True):
 		proofread_edges = h5read(os.path.join(V.directory, "proofread_edges.h5"), force=True)
 		V.proofread_G = regiongraphs.make_graph(V.vertices, proofread_edges)
 
-	for epoch in xrange(START_EPOCH, START_EPOCH+N_EPOCHS):
+	for epoch in xrange(N_EPOCHS):
 		V.changed = np.zeros(V.full_size, dtype=np.uint8)
-		V.visited = np.zeros(V.full_size, dtype=np.uint8)
+		V.visited = np.zeros(V.full_size, dtype=np.float32)
 		sort_samples(V)
 		n_errors = len(V.weights)-np.searchsorted(V.weights[::-1],0.5)
 		print(str(n_errors) + " errors")
-		for i in xrange(min(N_STEPS,n_errors)):
-			print(i)
-			try:
-				tic()
-				pos=perturb(V.samples[i,:],V)
-				region = get_region(V,pos)
-				cutout=SubVolume(V,region)
-				if (V.visited[tuple(pos)] > 0):
-					raise ReconstructionException("Already visited here")
-				toc("cutout")
-
-				tic()
-				#check if segment leaves window. If not, don't grow it.
-				central_segment = bfs(cutout.G,[V.raw_labels[tuple(pos)]])
-				central_segment_mask = indicator(cutout.raw_labels,central_segment)
-				central_segment_bbox = ndimage.find_objects(central_segment_mask, max_label=1)[0]
-				if all([x.stop-x.start < y for x,y in zip(central_segment_bbox,DUST_THRESHOLD)]):
-					raise ReconstructionException("dust; not growing")
-				toc("dust check")
-				
-				tic()
-				current_segments = bfs(cutout.G,[V.raw_labels[tuple(pos)]]+cutout.local_errors(threshold=ERROR_THRESHOLD))
-				toc("select neighbours")
-
-				tic()
-				cutout.mask=indicator(cutout.raw_labels,current_segments)
-				cutout.central_supervoxel = indicator(cutout.raw_labels,[V.raw_labels[tuple(pos)]])
-				cutout.current_object
-				toc("gen masks")
-
-				tic()
-				cutout.traced = reconstruct_utils.trace_daemon(cutout.image, cutout.current_object, cutout.central_supervoxel)
-				toc("tracing")
-
-				if analyze_run:
+		for I in xrange(0,min(N_STEPS,n_errors),RANDOMIZE_BATCH):
+			shuff = np.arange(RANDOMIZE_BATCH)
+			np.random.shuffle(shuff)
+			for j in shuff:
+				i=I+j
+				print(i)
+				try:
 					tic()
-					df_segments_next, df_examples_next = analyze(cutout,i)
-					df_segments = df_segments.append(df_segments_next)
-					df_examples = df_examples.append(df_examples_next)
-					toc("analysis")
+					pos=perturb(V.samples[i,:],V)
+					region = get_region(V,pos)
+					cutout=SubVolume(V,region)
+					if (V.visited[tuple(pos)] >= 1):
+						raise ReconstructionException("Already visited here")
+					V.visited[tuple(pos)] += 1
+					if V.raw_labels[tuple(pos)] in V.glial:
+						raise ReconstructionException("glia; not growing")
+					toc("cutout")
 
-				if not dry_run:
 					tic()
-					tmp=commit(cutout, close=close)
-					if tmp:
-						V.changed_list.append(V.samples[i:i+1,:])
-					toc("commit")
+					#check if segment leaves window. If not, don't grow it.
+					central_segment = bfs(cutout.G,[V.raw_labels[tuple(pos)]])
+					central_segment_mask = indicator(cutout.raw_labels,central_segment)
+					central_segment_bbox = ndimage.find_objects(central_segment_mask, max_label=1)[0]
+					if all([x.stop-x.start < y for x,y in zip(central_segment_bbox,DUST_THRESHOLD)]):
+						raise ReconstructionException("dust; not growing")
+					toc("dust check")
+					
+					tic()
+					current_segments = bfs(cutout.G,[V.raw_labels[tuple(pos)]]+cutout.local_errors(threshold=ERROR_THRESHOLD))
+					toc("select neighbours")
 
-				tic()
-				visited_cutout = indicator(cutout.raw_labels, bfs(cutout.G, [V.raw_labels[tuple(pos)]]))
-				subregion = crop_region(patch_size,VISITED_CROP)
-				V.visited[cutout.region][subregion] = np.maximum(V.visited[cutout.region], visited_cutout)[subregion]
-				toc("recording visit")
+					tic()
+					cutout.mask=indicator(cutout.raw_labels,current_segments)
+					cutout.central_supervoxel = indicator(cutout.raw_labels,[V.raw_labels[tuple(pos)]])
+					cutout.current_object
+					toc("gen masks")
 
-				print("Committed!")
-			except ReconstructionException as e:
-				print(e)
-				misc_utils.tics=[]
+					tic()
+					cutout.traced = reconstruct_utils.trace_daemon(cutout.image, cutout.mask, cutout.central_supervoxel)
+					toc("tracing")
 
-			if analyze_run and i%100 == 0:
-				df_segments.to_pickle("segments.pickle")
-				df_examples.to_pickle("examples.pickle")
-		if log:
-			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_edges.h5"), V.G.edges())
-			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_changed.h5"), V.changed)
-			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_changed_list.h5"), np.concatenate(V.changed_list,axis=0))
+					if analyze_run:
+						tic()
+						df_segments_next, df_examples_next = analyze(cutout,i)
+						df_segments = df_segments.append(df_segments_next)
+						df_examples = df_examples.append(df_examples_next)
+						toc("analysis")
+
+					if not dry_run:
+						tic()
+						tmp=commit(cutout, close=close)
+						if tmp:
+							V.changed_list.append(V.samples[i:i+1,:])
+						toc("commit")
+
+					tic()
+					visited_cutout = indicator(cutout.raw_labels, bfs(cutout.G, [V.raw_labels[tuple(pos)]]))
+					subregion = crop_region(patch_size,VISITED_CROP)
+					V.visited[cutout.region][subregion] += visited_cutout[subregion]
+					toc("recording visit")
+
+					print("Committed!")
+				except ReconstructionException as e:
+					print(e)
+					misc_utils.tics=[]
+					"""
+					if e.message != "out of bounds":
+						visited_cutout = indicator(cutout.raw_labels, bfs(cutout.G, [V.raw_labels[tuple(pos)]]))
+						subregion = crop_region(patch_size,VISITED_CROP)
+						V.visited[cutout.region][subregion] += 0.3*visited_cutout[subregion]
+					"""
+
+				if analyze_run and i%100 == 0:
+					df_segments.to_pickle(os.path.join(logdir,"segments.pickle"))
+					df_examples.to_pickle(os.path.join(logdir,"examples.pickle"))
+				if i % 1000 == 0 and logdir is not None:
+					h5write(os.path.join(logdir,"epoch"+str(epoch)+"_edges.h5"), V.G.edges())
+					h5write(os.path.join(logdir,"epoch"+str(epoch)+"_changed_list.h5"), np.concatenate(V.changed_list+[np.zeros((0,3))],axis=0))
+		if logdir is not None:
+			h5write(os.path.join(logdir,"epoch"+str(epoch)+"_edges.h5"), V.G.edges())
+			h5write(os.path.join(logdir,"epoch"+str(epoch)+"_changed_list.h5"), np.concatenate(V.changed_list+[np.zeros((0,3))],axis=0))
 		recompute_errors(V)
-		if log:
-			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_machine_labels.h5"), V.machine_labels)
-			h5write(os.path.join(V.directory,"epoch"+str(epoch)+"_errors.h5"), V.errors)
+		if logdir is not None:
+			h5write(os.path.join(logdir,"epoch"+str(epoch)+"_machine_labels.h5"), V.machine_labels)
+			h5write(os.path.join(logdir,"epoch"+str(epoch)+"_errors.h5"), V.errors)
 	return V.G.edges()
+
+def reconstruct_wrapper(image, errors, watershed, affinities, samples, vertices, edges, full_edges, valid=set([]), glial=set([]), dendrite=set([])):
+	V=Volume("", {
+			"image": image,
+			 "errors": errors,
+			 "raw_labels": watershed,
+			 "affinities": affinities,
+			 "vertices": vertices,
+			 "edges": edges,
+			 "full_edges": full_edges,
+			 "valid": valid,
+			 "glial": glial,
+			 "dendrite": dendrite,
+			 "samples": samples,
+		})
+	return reconstruct_volume(V,dry_run=False,analyze_run=False, logdir=None)
 
 if __name__ == "__main__":
 	#basename = sys.argv[1]
-	basename=os.path.expanduser("~/mydatasets/golden/")
+	#basename=os.path.expanduser("/mnt/data01/jzung/pinky40_test")
+	basename=os.path.expanduser("~/mydatasets/3_3_1")
+	#basename=os.path.expanduser("~/mydatasets/2_3_1")
+	#basename=os.path.expanduser("~/mydatasets/golden")
 
 	print("loading files...")
 	V = Volume(basename,
 			{"image": "image.h5",
-			 "errors": "epoch2_errors.h5",
+			 "errors": PARENT + "errors.h5",
 			 "raw_labels": "raw.h5",
 			 "affinities": "aff.h5",
 			 #"human_labels": "proofread.h5",
 			 "vertices": "vertices.h5",
-			 "edges": "epoch2_edges.h5",
+			 "edges": PARENT + "edges.h5",
 			 "full_edges": "full_edges.h5",
 			 "valid": set([]),
-			 "glial": set([2]),
+			 #"glial": set([30437,8343897,4322435,125946,8244754,4251447,8355342,5551,4346675,8256784,118018,8257243,20701,2391,4320,8271859,4250078]),
+			 #"glial": set([2]),
+			 "glial": set([]),
+			 "dendrite": set([]),
+			 "axon": set([]),
 			 "samples": "samples.h5",
 			 })
 	print("done")
-	reconstruct_volume(V,dry_run=False,analyze_run=False, log=True)
+	date = datetime.now().strftime("%j-%H-%M-%S")
+	reconstruct_volume(V,dry_run=False,analyze_run=False, logdir=os.path.join(basename,date))
 	#edges = h5write(os.path.join(basename,"revised_edges.h5"),reconstruct_volume(V))
 

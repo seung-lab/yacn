@@ -20,6 +20,16 @@ def delete_bipartite(G, vertices1, vertices2):
 				#print "deleted edge", v1, v2
 				G.remove_edge(v1,v2)
 
+def update_weights_clique(G, vertices, weights):
+	for i in xrange(len(vertices)):
+		for j in xrange(i,len(vertices)):
+			v1=vertices[i]
+			v2=vertices[j]
+			if G.has_edge(v1,v2):
+				G[v1][v2]['weight']+=weights[vi]*weights[vj]
+				#G[v1][v2]['count']+=weights[vi]*weights[vj] + (1-weights[vi])*weights[vj] + weights[vi]*(1-weights[vj])
+				G[v1][v2]['count']+=weights[vi]+weights[vj] - weights[vi]*weights[vj]
+
 def bfs(G,l):
 	return set(_plain_bfs(G,l))
 
