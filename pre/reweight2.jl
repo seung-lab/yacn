@@ -62,7 +62,7 @@ end
 #We always output zyx, zero based indices
 function gen_samples(labels, patch_size; kernel_size=map(x->round(Int,x/2),patch_size), N=100000, M=30, mask=1)
 	weights = gen_weights(labels, kernel_size = kernel_size, M=M) .* mask
-	Save.save("weights.h5",weights)
+	#Save.save("weights.h5",weights)
 	weights *= (N/sum(weights))
 
 	A=Vector{Int}[]
