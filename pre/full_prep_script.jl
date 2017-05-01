@@ -19,10 +19,10 @@ function do_prep(in_dir, out_dir; patch_size = (318,318,33), ground_truth=false,
 	full_size = size(raw)
 	println(full_size)
 
-	#mean_labels = load("mean_agg_tr.h5")
-	remap = load("remap.h5")
-	mean_labels = collect(remap_array(raw, remap))
-	save("mean_labels.h5", mean_labels)
+	mean_labels = load("mean_agg_tr.h5")
+	#remap = load("remap.h5")
+	#mean_labels = collect(remap_array(raw, remap))
+	#save("mean_labels.h5", mean_labels)
 
 	if compute_samples
 		#the sample around a point x is [x-floor(patch_size/2): x-floor(patch_size/2)+patch_size]
@@ -41,6 +41,9 @@ function do_prep(in_dir, out_dir; patch_size = (318,318,33), ground_truth=false,
 	affinities = load("aff.h5")
 	@time mean_edges = compute_regiongraph(raw, mean_labels, affinities, threshold=0.3)
 	save("mean_edges.h5", mean_edges)
+
+	@time mean_contact_edges = compute_regiongraph(raw, mean_labels)
+	save("mean_contact_edges.h5", mean_edges)
 
 	if compute_full_edges
 		full_edges = compute_fullgraph(Batched(), raw, resolution=Int[4,4,40], radius=130, downsample=Int[4,4,1])
