@@ -34,7 +34,8 @@ def run_trace(q1,q2,device):
 	import os
 	os.environ["CUDA_VISIBLE_DEVICES"]=device
 
-	import yacn.nets.sparse_vector_labels_inference as sparse_vector_labels_inference
+	#import yacn.nets.sparse_vector_labels_inference as sparse_vector_labels_inference
+	from ..nets import sparse_vector_labels_inference
 	sparse_vector_labels_inference.main_model.restore("~/experiments/sparse_vector_labels/latest.ckpt")
 	while True:
 		try:
@@ -48,7 +49,8 @@ def run_discrim_online(q1,q2,device):
 	import os
 	os.environ["CUDA_VISIBLE_DEVICES"]=device
 
-	import yacn.nets.discriminate3_online_inference as discriminate3_online_inference
+	#import yacn.nets.discriminate3_online_inference as discriminate3_online_inference
+	from ..nets import discriminate3_online_inference
 	discriminate3_online_inference.main_model.restore("~/experiments/discriminate3/latest.ckpt")
 	while True:
 		try:
@@ -62,7 +64,8 @@ def run_discrim_online(q1,q2,device):
 def run_recompute_discrim(q1,q2,device):
 	import os
 	os.environ["CUDA_VISIBLE_DEVICES"]=device
-	import yacn.nets.discriminate3_online_inference as inference
+	#import yacn.nets.discriminate3_online_inference as inference
+	from ..nets import discriminate3_online_inference as inference
 	inference.main_model.restore("~/experiments/discriminate3/latest.ckpt")
 	while True:
 		try:
