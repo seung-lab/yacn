@@ -29,7 +29,7 @@ function do_prep(in_dir, out_dir; patch_size = (318,318,33), ground_truth=false,
 	save("contact_edges.h5", contact_edges)
 
 	@time mean_contact_edges = compute_regiongraph(raw, mean_labels)
-	save("mean_contact_edges.h5", mean_edges)
+	save("mean_contact_edges.h5", mean_contact_edges)
 
 	if compute_full_edges
 		full_edges = compute_fullgraph(Batched(), raw, resolution=Int[4,4,40], radius=130, downsample=Int[4,4,1])
