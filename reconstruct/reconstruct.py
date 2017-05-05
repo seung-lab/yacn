@@ -418,7 +418,7 @@ def reconstruct_wrapper(image, errors, watershed, height_map, samples, vertices,
 			"image": image,
 			 "errors": errors,
 			 "raw_labels": watershed,
-			 "height_map": height_map
+			 "height_map": height_map,
 			 "vertices": vertices,
 			 "edges": edges,
 			 "full_edges": full_edges,
