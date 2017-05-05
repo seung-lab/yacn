@@ -327,7 +327,7 @@ def reconstruct_volume(V, dry_run = False, analyze_run = False, logdir=None):
 		n_errors = len(V.weights)-np.searchsorted(V.weights[::-1],0.5)
 		print(str(n_errors) + " errors")
 		for I in xrange(0,min(N_STEPS,n_errors),RANDOMIZE_BATCH):
-			shuff = np.arange(RANDOMIZE_BATCH)
+			shuff = np.arange(min(RANDOMIZE_BATCH, n_errors-I))
 			np.random.shuffle(shuff)
 			for j in shuff:
 				i=I+j
