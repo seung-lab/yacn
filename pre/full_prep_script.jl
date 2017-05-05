@@ -41,12 +41,16 @@ function do_prep(in_dir, out_dir; patch_size = (318,318,33), ground_truth=false,
 	save("mean_edges.h5", mean_edges)
 
 	@time h = height_map(affinities)
+	affinities=nothing
 	save("height_map.h5", quantize(h))
 	thicken_threshold=0.20054501 #JNet long1
+	#thicken_threshold=0.15 #JNet long1
 	threshold!(raw, h, thicken_threshold)
 	threshold!(mean_labels, h, thicken_threshold)
 	save("thickened_raw.h5", raw)
 	save("thickened_mean_agg_tr.h5", mean_labels)
+
+	h=nothing
 
 	if compute_samples
 		#the sample around a point x is [x-floor(patch_size/2): x-floor(patch_size/2)+patch_size]
