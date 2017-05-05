@@ -310,6 +310,7 @@ def reconstruct_volume(V, dry_run = False, analyze_run = False, logdir=None):
 	V.edges = V.edges[:]
 	V.vertices = V.vertices[:]
 	V.raw_labels = V.raw_labels[:]
+	V.height_map = V.height_map[:]
 	V.G = regiongraphs.make_graph(V.vertices,V.edges)
 	V.full_G = regiongraphs.make_graph(V.vertices, V.full_edges)
 	V.changed_list = []
@@ -434,14 +435,14 @@ if __name__ == "__main__":
 	#basename=os.path.expanduser("/mnt/data01/jzung/pinky40_test")
 	#basename=os.path.expanduser("~/mydatasets/3_3_1")
 	#basename=os.path.expanduser("~/mydatasets/2_3_1")
-	basename=os.path.expanduser("~/mydatasets/golden")
-	#basename=os.path.expanduser("/mnt/data01/jzung/golden_thickened")
+	#basename=os.path.expanduser("~/mydatasets/golden")
+	basename=os.path.expanduser("/mnt/data01/jzung/golden")
 
 	print("loading files...")
 	V = Volume(basename,
 			{"image": "image.h5",
 			 "errors": PARENT + "errors.h5",
-			 "raw_labels": "raw.h5",
+			 "raw_labels": "thickened_raw.h5",
 			 "height_map": "height_map.h5",
 			 #"human_labels": "proofread.h5",
 			 "vertices": "vertices.h5",
@@ -450,7 +451,7 @@ if __name__ == "__main__":
 			 "valid": set([]),
 			 #"glial": set([30437,8343897,4322435,125946,8244754,4251447,8355342,5551,4346675,8256784,118018,8257243,20701,2391,4320,8271859,4250078]),
 			 #"glial": set([2]),
-			 #"glial": set([3]),
+			 "glial": set([3]),
 			 #"glial": "glial.h5",
 			 #"glial": set([]),
 			 "dendrite": set([]),
