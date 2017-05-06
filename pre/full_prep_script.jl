@@ -43,8 +43,8 @@ function do_prep(in_dir, out_dir; patch_size = (318,318,33), ground_truth=false,
 	@time h = height_map(affinities)
 	affinities=nothing
 	save("height_map.h5", quantize(h))
-	thicken_threshold=0.20054501 #JNet long1
-	#thicken_threshold=0.15 #JNet long1
+	#thicken_threshold=0.20054501 #JNet long1
+	thicken_threshold=0.1
 	threshold!(raw, h, thicken_threshold)
 	threshold!(mean_labels, h, thicken_threshold)
 	save("thickened_raw.h5", raw)
