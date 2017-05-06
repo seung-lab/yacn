@@ -49,10 +49,10 @@ function load(path::Path{:h5})
 end
 
 function save(path::Path{:npy},x)
-	npzwrite(path,x)
+	npzwrite("$(path.prefix).npy",x)
 end
 function load(path::Path{:npy})
-	npzread(path)
+	npzread("$(path.prefix).npy",x)
 end
 
 function load(path::Path{:jls})
