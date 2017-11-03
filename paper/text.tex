@@ -98,6 +98,13 @@ We find it especially interesting and natural to combine the error-detecting and
 
 \section{Error Detection}
 \subsection{Task Specification}
+\begin{figure}
+\begin{center}
+	\includegraphics[width=0.65\linewidth]{detection_task.jpg}
+	\caption{Input to the error detector on the left and the corresponding error map on the right.}
+	\label{fig:error_detection_cartoon}
+\end{center}
+\end{figure}
 Given a single segment in a proposed segmentation presented as a binary image $Obj$, the error detection task is to produce a second binary image called the \textit{error map}, denoted $Err_{p_x\times p_y \times p_z}(Obj)$. The definition of the error map depends on a choice of a window size $p_x \times p_y \times p_z$. A pixel $i$ in the error map is 1 iff the restriction of the input image to a window centred at $i$ of size $p_x \times p_y \times p_z$ is pixel-wise equal to the restriction of some object in the ground truth. Observe that the error map is sensitive to both split and merge errors.
 
 A smaller window size allows us to localize errors more precisely. On the other hand, if the window radius is less than the width of a typical boundary, it is possible that two objects participating in a merge error never appear in the same window. These merge errors would not be classified as an error in any window. 
@@ -111,6 +118,13 @@ We trained two variants, one of which takes as input only $Obj$, and another whi
 
 \section{Error Correction}
 \subsection{Task Specification}
+\begin{figure}
+\begin{center}
+	\includegraphics[width=0.65\linewidth]{correction_task.jpg}
+	\caption{Desired input and output for the erasure network. In the first case there is nothing to erase, while in the second case the object not overlapping the central pixel is erased.}
+	\label{fig:error_correction_cartoon}
+\end{center}
+\end{figure}
 The error correction module has two inputs: first, an image patch of size $P_x\times P_y\times P_z$ and second a binary image encoding the union of several objects. The error correction task is to erase all objects except for the object overlapping the central pixel.
 
 At test time, the input binary image will be the union of all objects with a detected error.
@@ -144,8 +158,7 @@ In this section, we describe how error detectors and error correctors are combin
 During the error correction phase, we maintain a graph whose vertices are segments in an over-segmentation (henceforth called supervoxels) and whose connected components are segments in the proposed segmentation. In a window centred on each detected error, we produce a binary mask with all supposedly-error-free objects zeroed out. We then apply the error correction network which produces a binary image $M$ representing the object containing the central pixel. The intensities in $M$ are averaged within each supervoxel. If the output passes a confidence threshold, we add to the regiongraph a clique on those supervoxels with high average intensity in $M$ and delete all edges connecting these supervoxels to others in the window. The error detection network is then reapplied locally. We iterate until every location is either error free or has been corrected at least twice.
 
 
------
-In this section, we present a greedy algorithm which combines the error detector and the error corrector to greedily update an initial segmentation. We assume that we are provided with an initial segmentation along with a strict over-segmentation. We term the segments in the over-segmentation supervoxels. Throughout the error correction phase, we maintain a graph whose vertices are supervoxels and whose connected components are segments in the proposed segmentation.
+%In this section, we present a greedy algorithm which combines the error detector and the error corrector to greedily update an initial segmentation. We assume that we are provided with an initial segmentation along with a strict over-segmentation. We term the segments in the over-segmentation supervoxels. Throughout the error correction phase, we maintain a graph whose vertices are supervoxels and whose connected components are segments in the proposed segmentation.
 
 Let $L$ be a list of locations densely sampled from the image. We say that an error is detected at a location of the the error detector reports a value of >0.25 on a window centred at that location. For each location in the 
 
