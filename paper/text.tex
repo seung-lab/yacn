@@ -25,6 +25,7 @@
 \usepackage{wrapfig}
 \usepackage{subcaption}
 \usepackage[numbers]{natbib}
+\usepackage[toc,page]{appendix}
 \bibliographystyle{plainnat}
 
 \title{An Error Detection and Correction Framework for Connectomics}
@@ -73,56 +74,45 @@ We implement both error detection and error correction using 3d multiscale convo
 In this paper, we will demonstrate the feasibility of high quality error detection. We will also demonstrate the effectiveness of error detection in directing the attention of an error correction module. We expect our error detector will be independently useful for directing human proofreading effort.
 
 \section{Related Work}
-Within the context of the neuron segmentation problem, the most directly comparable technique is work on learned policies for supervoxel agglomeration \cite{lash,gala}. Whereas the primitive operation in supervoxel agglomeration is a black box which accepts a pair of segments and decides whether to merge them, our primitive operation accepts a single segment and decides whether it should be modified in any way. In one shot, our error correction network then selects from among many choices the correct change to make. Both methods consider only one or two objects at a time and therefore benefit from focused attention and shape cues. However, greedy agglomeration must evaluate each pair of touching objects at least once, while our pipeline need only evaluate most objects once. The additional overhead in agglomeration prohibits the use of expensive deep learning. Some progress in this direction has been made (see \cite{convnet_agglomeration}), but the standard approach remains the use of hand designed features \cite{gala}.
+Within the context of the neuron segmentation problem, a directly comparable technique is the use of learned policies for supervoxel agglomeration \cite{lash,gala}. Whereas the primitive operation in supervoxel agglomeration is a black box which accepts a pair of segments and decides whether to merge them, our primitive operation accepts a single segment and decides whether it should be modified in any way. In one shot, our error correction network then selects from among many choices the correct change to make. Both methods consider only one or two objects at a time and therefore benefit from focused attention and shape cues. However, greedy agglomeration must evaluate each pair of touching objects at least once, while our pipeline need only evaluate most objects once. The additional overhead in agglomeration prohibits the use of expensive deep learning. Some progress in this direction has been made (see \cite{convnet_agglomeration}), but the standard approach remains the use of hand designed features \cite{gala}.
 
-We also argue that the error detection task is better posed than the supervoxel agglomeration task. Given two objects which already contain errors, it is often unclear whether the segmentation improves after they have been merged. In \cite{lash}, the authors resolve this ambiguity by training to predict the change in rand score from a merge.
+We also argue that the error detection task is better posed than the supervoxel agglomeration task. Given two objects which already contain errors, it is often unclear whether the segmentation improves after they have been merged. In \cite{lash}, the authors resolve this ambiguity by training to predict the change in rand score from a proposed merge.
 
 Recent efforts at error detection have been made in \cite{multipass} (which uses topological features of a skeletal representation) and \cite{mergenet} (which uses convolutional neural networks).
 
-Our error correction approach is closely related to the work on flood-filling networks in \cite{floodfilling} and \cite{multipass}, which in turn is related to \cite{recurrent_instance_seg_1} and \cite{recurrent_instance_seg_2}. As in their approach, we train a neural network to reconstruct one object at a time. Our main novelty relative to their approach is the use of the advice of an error detector to bias flood filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood filling networks. While they perform inference densely, we selectively apply our flood filling networks near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for these advantages.
+Our error correction approach is closely related to the work on flood-filling networks in \cite{floodfilling} and \cite{multipass}, which in turn is related to \cite{recurrent_instance_seg_1} and \cite{recurrent_instance_seg_2}. As in their approach, we train a neural network to reconstruct one object at a time. While the flood-filling task is to extend a partially reconstructed object, our task is to remove incorrect pieces from a superset of the object. Our method requires as a starting point a superset of any object. Our main observation is that we can take this superset to be the union of all segments with a detected error. Since the typical error rate in the baseline segmentation is already low, there is often not much to erase and the task is relatively easy.
 
-Within the broader context of machine learning, our approach may be compared to other strategies for structured prediction problems. A relevant approach is the use of the conditional generative adversarial framework, in which one simultaneously trains a prediction network and an discriminator network which enforces structural constraints on the output \cite{cgan1,cgan2}. We do not co-train our error correction and error detection networks, but this could be the subject of future work. 
+While $\cite{floodfilling}$ performs inference densely, we selectively apply our error correction module near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for this advantage.
 
-Our approach may also be compared with models for visual attention in the literature (for example, \cite{recurrent_attention}). Recurrent neural networks are able to learn in an end-to-end way how to find which parts of an image are relevant to the given task. In contrast, we have a fixed policy for which objects to attend to: we attend to those objects which likely contain errors. One of our central findings is that this policy is highly selective and improves segmentation performance.
+%Our main novelty relative to their approach is the use of the advice of an error detector to bias flood filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood filling networks. 
 
 \section{Error Detection}
 \subsection{Task Specification}
-We take a fully supervised approach to error detection. Given a window of size $p_x\times p_y\times p_z$ and a binary mask encoding a single object in a proposed segmentation, the error detection task is to report whether or not the restriction of the mask to the window is pixel-wise equal to the restriction of some object in the ground truth. Our use of pixel-wise equality demands at training-time a ground-truth segmentation that is composed of the same building blocks (supervoxels) as the proposed segmentation.
+Given a single segment in a proposed segmentation presented as a binary image $Obj$, the error detection task is to produce a second binary image called the \textit{error map}, denoted $Err_{p_x\times p_y \times p_z}(Obj)$. The definition of the error map depends on a choice of a window size $p_x \times p_y \times p_z$. A pixel $i$ in the error map is 1 iff the restriction of the input image to a window centred at $i$ of size $p_x \times p_y \times p_z$ is pixel-wise equal to the restriction of some object in the ground truth. Observe that the error map is sensitive to both split and merge errors.
 
-A smaller window size allows us to localize errors more precisely. On the other hand, if the window radius is less than the width of a typical boundary, it is possible that two objects participating in a merge error never appear in the same window. These merge errors would not be classified as an error in any window. For our experiments, we chose a safe size of  $p_x\times p_y \times p_z = 46\times 46 \times 7$.
+A smaller window size allows us to localize errors more precisely. On the other hand, if the window radius is less than the width of a typical boundary, it is possible that two objects participating in a merge error never appear in the same window. These merge errors would not be classified as an error in any window. 
 
+We could use a less stringent measure than pixel-wise equality that disregards small perturbations of the boundaries of objects. However, our proposed segmentations are all composed of the same building blocks (supervoxels) as the ground truth segmentation, so this is not an issue for us.
 
 \subsection{Architecture}
+We take a fully supervised approach to error detection. We implement error detection using a multiscale 3d convolutional neural network. The architecture is detailed in ~\ref{appendix:architecture}. Its design is informed by experience with convolutional networks for boundary detection (see \cite{kisuk}) and reflects recent trends in neural network design \cite{unet,resnet}. Its field of view is $P_x\times P_y\times P_z=318\times 318\times 33$ (which is roughly cubic in physical size given the anisotropic resolution of our dataset). The network computes (downsamplings of) $Err_{46 \times 46 \times 7}$, $Err_{98 \times 98 \times 12}$, and $Err_{318 \times 318 \times 33}$.
 
-\begin{figure}
-\begin{subfigure}{0.5\textwidth}
-	\centering
-	\includegraphics[width=1.0\linewidth]{error_detector.pdf}
-\end{subfigure}
-\begin{subfigure}{0.5\textwidth}
-	\centering
-	\includegraphics[width=1.0\linewidth]{error_corrector.pdf}
-\end{subfigure}
-\caption{Architectures for the error detection and error correction modules respectively. Each node represents a layer and the number inside represents the number of feature maps. The layers closer to the top of the diagram have lower resolution than the layers near the bottom. We make savings in computation by minimizing the number of high resolution feature maps. The diagonal arrows represent strided convolutions, while the horizontal arrows represent skip connections.}
-\label{fig:architecture}
-\end{figure}
-
-We implement error detection using a multiscale 3d convolutional neural network. The architecture is detailed in figure ~\ref{fig:architecture}. Its design is informed by experience with convolutional networks for boundary detection (see \cite{kisuk}) and reflects recent trends in neural network design \cite{unet,resnet}. Its input patch size is $P_x\times P_y\times P_z=318\times 318\times 33$ (which is roughly cubic in physical size given the anisotropic resolution of our dataset). We trained two variants, one of which takes as input only the object mask, and another which additionally receives as input the original image. The network simultaneously reports errors in several overlapping subwindows of size $p_x\times p_y \times p_z$ arranged in an $18\times 18\times 14$ grid.
+We trained two variants, one of which takes as input only $Obj$, and another which additionally receives as input the original image. 
 
 \section{Error Correction}
 \subsection{Task Specification}
-Our error correction module takes as input an image patch of size $(P_x, P_y, P_z)$. The desired output is a binary image encoding the object which overlaps the central pixel. 
+The error correction module has two inputs: first, an image patch of size $P_x\times P_y\times P_z$ and second a binary image encoding the union of several objects. The error correction task is to erase all objects except for the object overlapping the central pixel.
 
-We may optionally include an auxiliary ``advice'' input which is a binary mask in which some irrelevant objects have been zeroed out. At test time, objects which contain no detected errors within the given window will be zeroed out.  (The central object is guaranteed not to be masked out). 
+At test time, the input binary image will be the union of all objects with a detected error.
 
 \subsection{Architecture}
-Yet again, we implement error correction using a multiscale 3d convolutional neural network. The architecture is detailed in figure ~\ref{fig:architecture}. One difficulty with training a neural network to reconstruct the object containing the central pixel is that the desired output can change drastically as the central pixel moves between objects. We use an intermediate representation whose role is to soften this dependence on the location of the central pixel. The desired output is a $k$ dimensional vector $v(x,y,z)$ at each point $(x,y,z)$ such that points within the same object have similar vectors and points in different objects have different vectors. We transform this vector field into a binary image $M$ representing the object overlapping the central pixel as follows:
+Yet again, we implement error correction using a multiscale 3d convolutional neural network. The architecture is detailed in ~\ref{appendix:architecture}. One difficulty with training a neural network to reconstruct the object containing the central pixel is that the desired output can change drastically as the central pixel moves between objects. We use an intermediate representation whose role is to soften this dependence on the location of the central pixel. The desired output is a $k$ dimensional vector $v(x,y,z)$ at each point $(x,y,z)$ such that points within the same object have similar vectors and points in different objects have different vectors. We transform this vector field into a binary image $M$ representing the object overlapping the central pixel as follows:
 
 \begin{equation*}
 	M(x,y,z)=\exp(-||v(x,y,z)-v(P_x/2,P_y/2,P_z/2)||^2)
 \end{equation*}
 
-When an over-segmentation is available, we replace $v(P_x/2,P_y/2,P_z/2)$ with the average of $v$ over the supervoxel containing the central pixel.
+When an over-segmentation is available, we replace $v(P_x/2,P_y/2,P_z/2)$ with the average of $v$ over the supervoxel containing the central pixel. Note that we backpropagate through the transform $M$, so the vector representation may be seen as an implementation detail and the output of the network is just a binary image.
 
 
 \section{Putting it Together}
@@ -161,10 +151,21 @@ A team of tracers produced a gold standard dense reconstruction of $850$ Mvoxels
 Producing the gold standard segmentation required a total of $\sim900$ tracer hours, while producing the bootstrapped ground truth required $\sim 670$ tracer hours.
 
 \subsection{Baseline Segmentation}
-Our baseline segmentation is produced using a standard pipeline of multiscale convolutional neural networks for boundary detection, watershed, and mean affinity agglomeration. A similar pipeline is described in detail in  \cite{kisuk}. The segmentation performance values reported for the baseline are taken at a mean affinity agglomeration threshold of 0.23, which minimizes the total variation of information error metric on the test volume.
+Our baseline segmentation was produced using a standard pipeline of multiscale convolutional neural networks for boundary detection, watershed, and mean affinity agglomeration. A similar pipeline is described in detail in  \cite{kisuk}. The segmentation performance values reported for the baseline are taken at a mean affinity agglomeration threshold of 0.23, which minimizes the total variation of information error metric on the test volume.
 
-\subsection{Training}
-The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}. We augmented all of our data with rotations, simulated misalignments, and missing sections. The proposed segmentations used for training the error detection network were generated using mean affinity agglomeration at a threshold of 0.3. Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error correction network trained for 1,700,000 iterations (approximately three weeks).
+\subsection{Sampling Procedure}
+\label{sec:sampling}
+In this section, we describe our procedure for choosing a random point location in a segmentation. Uniformly random sampling is unsatisfactory since large objects such as dendritic trunks will be overrepresented. Instead, given a segmentation, we sample a location $x,y,z$ with probability inversely proportional to the fraction of a window of size $128\times 128 \times 16$ centred at $x,y,z$ which is occupied by the object containing pixel $x,y,z$.
+
+\subsection{Error Detection Training Data}
+An initial segmentation containing errors was produced using our baseline boundary detection network combined with mean affinity agglomeration at a threshold of 0.3. Point locations were sampled according to the sampling procedure specified in \ref{sec:sampling}. We augmented all of our data with rotations and reflections. 
+
+\subsection{Error Correction Training Data}
+We sampled locations in the ground truth segmentation as in $\ref{sec:sampling}$. At each location $x,y,z$, we generated a training example as follows. We selected a random subset of the objects in the window centred on $x,y,z$ including the object overlapping the central pixel. (To be precise, we chose a number $p$ uniformly at random from $[0,1]$, and then selected each segment in the window with probability $p$ in addition to the central object.) The input is a binary image representing the union of the selected objects along with the original EM image, and the desired output is a binary image representing only the central object.
+
+Note that this training procedure is completely independent of the error detector and the baseline segmentataion.
+
+The dataset was augmented with rotations, reflections, simulated misalignments and missing sections.
 
 \subsection{Error Detection Results}
 To measure the quality of error detection, we densely sampled points in our test volume. In order to remove ambiguity over the precise location of errors, we sampled only points which contained an error within a surrounding window of size $40\times 40 \times 4$ or did not contain an error within a surronding window of size $80 \times 80 \times 8$. Precision and recall simultaneously exceed 90\% (see figure \ref{fig:error_detection_pr}). Empirically, many of the false positive examples come where a dendritic spine head curls back and touches its trunk. These examples locally appear to be incorrectly merged objects.
@@ -234,7 +235,7 @@ Both quantities have units of bits. $VI_{split}(i)$ is zero iff ground truth seg
 \end{center}
 \end{figure}
 
-Given that our baseline approach already produces state-of-the-art results on other datasets (see \cite{kisuk}), we expect that the method presented here is a substantial improvement upon the state of the art. However, we have not conducted experiments on publicly available datasets, and therefore we leave a careful comparison for future work.
+%Given that our baseline approach already produces state-of-the-art results on other datasets (see \cite{kisuk}), we expect that the method presented here is a substantial improvement upon the state of the art. However, we have not conducted experiments on publicly available datasets, and therefore we leave a careful comparison for future work.
 
 \subsection{Cost Analysis}
 Table \ref{table:timing} shows the cost of the most expensive parts of our segmentation pipeline. The combined cost of error detection and error correction is within an order of magnitude of the cost of boundary detection. The selectivity of our error detection network allowed us to run error correction at roughly 10\% of the possible locations in the image. Therefore, the cost of error detection is more than justified by the subsequent savings during the error correction phase. As the error rate of the initial segmentation decreases and the precision of the error detector increases, the number of locations requiring error correction will only fall further.
@@ -261,6 +262,10 @@ We expect that significant improvements in the accuracy of error detection could
 
 An error detection module has many potential uses beyond the ones presented here. For example, we could use error detection to direct ground truth annotation effort toward mistakes. If sufficiently accurate, it could also be used directly as a learning signal for segmentation algorithms on unlabelled data.
 
+Within the broader context of machine learning, our approach may be compared to other strategies for structured prediction problems. A relevant approach is the use of the conditional generative adversarial framework, in which one simultaneously trains a prediction network and an discriminator network which enforces structural constraints on the output \cite{cgan1,cgan2}. We do not co-train our error correction and error detection networks, but this could be the subject of future work. 
+
+Our approach may also be compared with models for visual attention in the literature (for example, \cite{recurrent_attention}). Recurrent neural networks are able to learn in an end-to-end way how to find which parts of an image are relevant to the given task. In contrast, we have a fixed policy for which objects to attend to: we attend to those objects which likely contain errors. One of our central findings is that this policy is highly selective and improves segmentation performance.
+
 \section{Author Contributions}
 JZ conducted most of the experiments and evaluation. IT (along with
 Will Silversmith) created much of the infrastructure necessary for visualization and running
@@ -285,48 +290,28 @@ representing the official policies or endorsements, either expressed or implied,
 or the U.S. Government.
 
 \bibliography{bib}
-\appendix
-\section{Network Specifications}
-The layers along each horizontal sequence in the $\ref{fig:architecture}$ have the same size. Their sizes are shown detailed in $\ref{table:sizes}$.
+\begin{appendices}
+\section{Network Architectures}
+\label{appendix:architecture}
+
+\begin{figure}
+\centering
+\includegraphics[width=1.0\linewidth]{error_detector.pdf}
+\centering
+\includegraphics[width=1.0\linewidth]{error_corrector.pdf}
+
+\caption{Architectures for the error detection and error correction modules respectively. Each node represents a layer and the number inside represents the number of feature maps. The layers closer to the top of the diagram have lower resolution than the layers near the bottom. We make savings in computation by minimizing the number of high resolution feature maps. The diagonal arrows represent strided convolutions, while the horizontal arrows represent skip connections.}
+\label{fig:architecture}
+\end{figure}
+
 Due to the anisotropy of the resolution of the images in our dataset, we design our networks so that the first convolutions are exclusively 2d while later convolutions are 3d. The field of view of a unit in the higher layers is therefore roughly cubic.
 
 
-To limit the number of parameters in our model, we factorize all 3d convolutions into a 2d convolution followed by a 1d convolution is z. We also use weight sharing between some convolutions at the same height.
+To limit the number of parameters in our model, we factorize all 3d convolutions into a 2d convolution followed by a 1d convolution in z. We also use weight sharing between some convolutions at the same height.
 
-\begin{table}[h]
-  \caption{Error Detector Convolution Kernel Sizes}
-  \label{table:sizes}
-  \centering
-  \begin{tabular}{llll}
-    \toprule
-	Height & Layer Size & Convolutional Kernel Size & Convolutional Kernel Stride\\
-	\midrule
-	1 & $2\times 318\times 318\times 33$ & $4\times 4\times1$ & $2\times2\times1$\\
-	2 & $4\times 158\times 158\times 33$ & $4\times4\times1$ & $2\times2\times1$\\
-	3 & $24\times 78\times 78\times 33$ & $4\times4\times4$ & $2\times2\times1$\\
-	4 & $28\times 38\times 38\times 30$ & $4\times4\times4$ & $2\times2\times2$\\
-	5 & $32\times 18\times 18\times 14$ & $4\times4\times4$ & $2\times2\times2$\\
-	6 & $48\times 8\times 8\times 6$ & $4\times4\times4$ & $2\times2\times2$\\
-	7 & $64\times 3\times 3\times 2$ & $4\times4\times4$ & $2\times2\times2$\\
-    \bottomrule
-  \end{tabular}
-\end{table}
-\begin{table}[h]
-  \caption{Error Corrector Convolution Kernel Sizes}
-  \centering
-  \begin{tabular}{llll}
-    \toprule
-	Height & Layer Size & Convolutional Kernel Size & Convolutional Kernel Stride\\
-	\midrule
-	1 & $2\times 318\times 318\times 33$ & $4\times 4\times1$ & $2\times2\times1$\\
-	2 & $18\times 158\times 158\times 33$ & $4\times4\times1$ & $2\times2\times1$\\
-	3 & $24\times 78\times 78\times 33$ & $4\times4\times4$ & $2\times2\times1$\\
-	4 & $28\times 38\times 38\times 30$ & $4\times4\times4$ & $2\times2\times2$\\
-	5 & $32\times 18\times 18\times 14$ & $4\times4\times4$ & $2\times2\times2$\\
-	6 & $48\times 8\times 8\times 6$ & $4\times4\times4$ & $2\times2\times2$\\
-	7 & $64\times 3\times 3\times 2$ & $4\times4\times4$ & $2\times2\times2$\\
-    \bottomrule
-  \end{tabular}
-\end{table}
+\section{Training Details}
+The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error correction network trained for 1,700,000 iterations (approximately three weeks).
+\end{appendices}
+
 
 \end{document}
