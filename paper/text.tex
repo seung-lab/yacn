@@ -48,41 +48,51 @@
 \maketitle
 
 \begin{abstract}
-	Significant advances have been made in recent years on the problem
-	of neural circuit reconstruction from electron microscopic imagery.
-	Improvements in image acquisition, image alignment, and boundary
-	detection have greatly reduced the achievable error rate. In order to make
-	further progress, we argue that automated error detection is 
-	essential for focusing the effort and attention of both human
-	and machine. In this paper, we report on the use of automated
-	error detection as an attention signal for a flood filling error 
-	correction module. We demonstrate significant improvements upon 
-	the state of the art in segmentation performance.
+We define and study error detection and correction tasks that are
+useful for 3D reconstruction of neurons from electron microscopic
+imagery, and for instance segmentation more generally.  The error
+detection task takes as input the original image and a binary mask
+representing a candidate object. The desired output is a map of split
+and merge errors in the object. The error correction task is
+formulated as object mask reduction. The input is the original image
+and a candidate object mask. The task is to reduce the object mask to
+generate the true object. We train multiscale 3D convolutional
+networks to perform both tasks, and then show how the nets can be
+combined to achieve significant improvements in segmentation
+accuracy. Namely, the error detecting net is used to create the
+object mask that is the input to the error correcting net.
 \end{abstract}
 
 \section{Introduction}
-A promising approach to understanding the fine structure of neural circuitry is the use of serial sectioning combined with electron microscopy to produce nanoscale resolution volumetric imagery of neural tissue. In order to convert such images into a wiring diagram, the neurites in a given volume of tissue must be segmented.
+While neuronal circuits can be reconstructed from volumetric electron
+microscopic imagery, the process has historically
+\cite{white1986structure} and even recently \cite{schmidt2017axonal}
+been highly laborious. One of the most time-consuming reconstruction
+tasks is the tracing of the brain's ``wires,'' or neuronal branches.
+This task is an example of instance segmentation, and can be automated through computer detection of the boundaries between neurons. Convolutional nets were first applied to neuronal boundary detection a decade ago \cite{boundary_detection, jain2007supervised}.
+Since then convolutional nets have become the standard approach, and
+the accuracy of boundary detection has become impressively high  \cite{li2017deep, beier2017multicut, kisuk, funke2017deep}.
 
-State-of-the-art segmentation pipelines for this problem use convolutional neural networks to detect boundaries between cells, followed by a connected components/watershed transform and hierarchical agglomeration procedures \cite{boundary_detection,kisuk}. In order to obtain a completely correct segmentation suitable for science, human tracers manually proofread the resulting segmentation. With the declining error rate of automated segmentation, a growing proportion of human time is spent searching for errors in a segmentation. Futhermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
+Given the low error rates, it becomes helpful to think of subsequent processing steps in terms of modules that detect and correct errors. In the error detection task (Fig. 1A), the input is the original image and a binary mask that represents a candidate object. The desired output is a map containing the locations of split and merge errors in the candidate object. Related work on this problem has been restricted to detection of merge errors only by either hand-designed \cite{multipass} or learned \cite{mergenet} computations.
 
-Our approach is to decompose the problem of refining a given segmentation into two easier problems: error detection and error correction. As a wise man once said, recognizing your faults is the first step towards fixing them. We hypothesize that thanks to the distinctive shapes of neurons, recognizing an error is much easier than finding the correct answer. 
+In the error correction task (Fig. 1B), the input is again the original image and a binary mask that represents a candidate object. The candidate object mask is assumed to be a superset of a true object, which is the desired output. With this assumption, error correction is formulated as \emph{object mask reduction}.
+Object mask reduction can be regarded as the splitting of undersegmented objects to create true objects. In this sense, it is the opposite of agglomeration, which merges oversegmented objects to create true objects \cite{lash,gala}. Object mask reduction can also be viewed as the \emph{subtraction} of voxels from an object to create a true object. In this sense, it is the opposite of a flood-filling net \cite{floodfilling,januszewski2017high}, each iteration of which is the \emph{addition} of voxels to an object to create a true object. Flood-filling nets are closely related to other work on instance segmentation in connectomics \cite{multipass} and computer vision \cite{recurrent_instance_seg_1, recurrent_instance_seg_2}.  The task of generating an object mask de novo from an image has also been studied in computer vision [citation from Kisuk].
 
-Conversely, an error detection module makes error correction much easier. Once we remove from consideration all objects which do not contain an error, the visual crowding problem is alleviated. Choosing the correct extension of a neurite is easy when there are only a few choices available. Furthermore, we can afford to apply a relatively expensive error correction procedure as it does not need to be applied everywhere.
+We implement both error detection and error correction using 3d multiscale convolutional networks.  One can imagine multiple uses for these nets in a connectomics pipeline. For example, the error-detecting net could be used to reduce the amount of labor required for proofreading by directing human attention to locations in the image where errors are likely. This labor reduction could be substantial because the declining error rate of automated segmentation has made it more time-consuming for a human to find an error.
 
-We implement both error detection and error correction using 3d multiscale convolutional neural networks.
+We find it especially interesting and natural to combine the error-detecting and error-correcting nets in the following way. To create the candidate object mask for the error-correcting net from a baseline segmentation, one can simply take the union of all erroneous segments as found by the error-detecting net. Since the typical error rate in the baseline segmentation is already low, there is often not much for the error-correcting net to erase and the task is relatively easy.
 
-In this paper, we will demonstrate the feasibility of high quality error detection. We will also demonstrate the effectiveness of error detection in directing the attention of an error correction module. We expect our error detector will be independently useful for directing human proofreading effort.
+%Furthermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
 
-\section{Related Work}
-Within the context of the neuron segmentation problem, a directly comparable technique is the use of learned policies for supervoxel agglomeration \cite{lash,gala}. Whereas the primitive operation in supervoxel agglomeration is a black box which accepts a pair of segments and decides whether to merge them, our primitive operation accepts a single segment and decides whether it should be modified in any way. In one shot, our error correction network then selects from among many choices the correct change to make. Both methods consider only one or two objects at a time and therefore benefit from focused attention and shape cues. However, greedy agglomeration must evaluate each pair of touching objects at least once, while our pipeline need only evaluate most objects once. The additional overhead in agglomeration prohibits the use of expensive deep learning. Some progress in this direction has been made (see \cite{convnet_agglomeration}), but the standard approach remains the use of hand designed features \cite{gala}.
+%Our approach is to decompose the problem of refining a given segmentation into two easier problems: error detection and error correction. As a wise man once said, recognizing your faults is the first step towards fixing them. We hypothesize that thanks to the distinctive shapes of neurons, recognizing an error is much easier than finding the correct answer. 
 
-We also argue that the error detection task is better posed than the supervoxel agglomeration task. Given two objects which already contain errors, it is often unclear whether the segmentation improves after they have been merged. In \cite{lash}, the authors resolve this ambiguity by training to predict the change in rand score from a proposed merge.
+%Conversely, an error detection module makes error correction much easier. Once we remove from consideration all objects which do not contain an error, the visual crowding problem is alleviated. Choosing the correct extension of a neurite is easy when there are only a few choices available. Furthermore, we can afford to apply a relatively expensive error correction procedure as it does not need to be applied everywhere.
 
-Recent efforts at error detection have been made in \cite{multipass} (which uses topological features of a skeletal representation) and \cite{mergenet} (which uses convolutional neural networks).
+%In this paper, we will demonstrate the feasibility of high quality error detection. We will also demonstrate the effectiveness of error detection in directing the attention of an error correction module. We expect our error detector will be independently useful for directing human proofreading effort.
 
-Our error correction approach is closely related to the work on flood-filling networks in \cite{floodfilling} and \cite{multipass}, which in turn is related to \cite{recurrent_instance_seg_1} and \cite{recurrent_instance_seg_2}. As in their approach, we train a neural network to reconstruct one object at a time. While the flood-filling task is to extend a partially reconstructed object, our task is to remove incorrect pieces from a superset of the object. Our method requires as a starting point a superset of any object. Our main observation is that we can take this superset to be the union of all segments with a detected error. Since the typical error rate in the baseline segmentation is already low, there is often not much to erase and the task is relatively easy.
+%We also argue that the error detection task is better posed than the supervoxel agglomeration task. Given two objects which already contain errors, it is often unclear whether the segmentation improves after they have been merged. In \cite{lash}, the authors resolve this ambiguity by training to predict the change in rand score from a proposed merge.
 
-While $\cite{floodfilling}$ performs inference densely, we selectively apply our error correction module near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for this advantage.
+%While $\cite{floodfilling}$ performs inference densely, we selectively apply our error correction module near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for this advantage.
 
 %Our main novelty relative to their approach is the use of the advice of an error detector to bias flood filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood filling networks. 
 
