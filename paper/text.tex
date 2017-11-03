@@ -71,12 +71,12 @@ been highly laborious. One of the most time-consuming reconstruction
 tasks is the tracing of the brain's ``wires,'' or neuronal branches.
 This task is an example of instance segmentation, and can be automated through computer detection of the boundaries between neurons. Convolutional nets were first applied to neuronal boundary detection a decade ago \cite{boundary_detection, jain2007supervised}.
 Since then convolutional nets have become the standard approach, and
-the accuracy of boundary detection has become impressively high  \cite{li2017deep, beier2017multicut, kisuk, funke2017deep}.
+the accuracy of boundary detection has become impressively high  \cite{zeng2017deep, beier2017multicut, kisuk, funke2017deep}.
 
 Given the low error rates, it becomes helpful to think of subsequent processing steps in terms of modules that detect and correct errors. In the error detection task (Fig. 1A), the input is the original image and a binary mask that represents a candidate object. The desired output is a map containing the locations of split and merge errors in the candidate object. Related work on this problem has been restricted to detection of merge errors only by either hand-designed \cite{multipass} or learned \cite{mergenet} computations.
 
 In the error correction task (Fig. 1B), the input is again the original image and a binary mask that represents a candidate object. The candidate object mask is assumed to be a superset of a true object, which is the desired output. With this assumption, error correction is formulated as \emph{object mask reduction}.
-Object mask reduction can be regarded as the splitting of undersegmented objects to create true objects. In this sense, it is the opposite of agglomeration, which merges oversegmented objects to create true objects \cite{lash,gala}. Object mask reduction can also be viewed as the \emph{subtraction} of voxels from an object to create a true object. In this sense, it is the opposite of a flood-filling net \cite{floodfilling,januszewski2017high}, each iteration of which is the \emph{addition} of voxels to an object to create a true object. Flood-filling nets are closely related to other work on instance segmentation in connectomics \cite{multipass} and computer vision \cite{recurrent_instance_seg_1, recurrent_instance_seg_2}.  The task of generating an object mask de novo from an image has also been studied in computer vision [citation from Kisuk].
+Object mask reduction can be regarded as the splitting of undersegmented objects to create true objects. In this sense, it is the opposite of agglomeration, which merges oversegmented objects to create true objects \cite{lash,gala}. Object mask reduction can also be viewed as the \emph{subtraction} of voxels from an object to create a true object. In this sense, it is the opposite of a flood-filling net \cite{floodfilling,januszewski2017high}, each iteration of which is the \emph{addition} of voxels to an object to create a true object. Flood-filling nets are closely related to other work on instance segmentation in connectomics \cite{multipass} and computer vision \cite{recurrent_instance_seg_1, recurrent_instance_seg_2}.  The task of generating an object mask de novo from an image has also been studied in computer vision~\cite{pinheiro2015}.
 
 We implement both error detection and error correction using 3D multiscale convolutional networks.  One can imagine multiple uses for these nets in a connectomics pipeline. For example, the error-detecting net could be used to reduce the amount of labor required for proofreading by directing human attention to locations in the image where errors are likely. This labor reduction could be substantial because the declining error rate of automated segmentation has made it more time-consuming for a human to find an error.
 
@@ -84,7 +84,7 @@ We find it especially interesting and natural to combine the error-detecting and
 
 %Furthermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
 
-%Our approach is to decompose the problem of refining a given segmentation into two easier problems: error detection and error correction. As a wise man once said, recognizing your faults is the first step towards fixing them. We hypothesize that thanks to the distinctive shapes of neurons, recognizing an error is much easier than finding the correct answer. 
+%Our approach is to decompose the problem of refining a given segmentation into two easier problems: error detection and error correction. As a wise man once said, recognizing your faults is the first step towards fixing them. We hypothesize that thanks to the distinctive shapes of neurons, recognizing an error is much easier than finding the correct answer.
 
 %Conversely, an error detection module makes error correction much easier. Once we remove from consideration all objects which do not contain an error, the visual crowding problem is alleviated. Choosing the correct extension of a neurite is easy when there are only a few choices available. Furthermore, we can afford to apply a relatively expensive error correction procedure as it does not need to be applied everywhere.
 
@@ -94,7 +94,7 @@ We find it especially interesting and natural to combine the error-detecting and
 
 %While $\cite{floodfilling}$ performs inference densely, we selectively apply our error correction module near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for this advantage.
 
-%Our main novelty relative to their approach is the use of the advice of an error detector to bias flood filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood filling networks. 
+%Our main novelty relative to their approach is the use of the advice of an error detector to bias flood filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood filling networks.
 
 \section{Error Detection}
 \subsection{Task Specification}
@@ -107,7 +107,7 @@ We find it especially interesting and natural to combine the error-detecting and
 \end{figure}
 Given a single segment in a proposed segmentation presented as a binary image $Obj$, the error detection task is to produce a second binary image called the \textit{error map}, denoted $Err_{p_x\times p_y \times p_z}(Obj)$. The definition of the error map depends on a choice of a window size $p_x \times p_y \times p_z$. A pixel $i$ in the error map is 1 iff the restriction of the input image to a window centred at $i$ of size $p_x \times p_y \times p_z$ is pixel-wise equal to the restriction of some object in the ground truth. Observe that the error map is sensitive to both split and merge errors.
 
-A smaller window size allows us to localize errors more precisely. On the other hand, if the window radius is less than the width of a typical boundary, it is possible that two objects participating in a merge error never appear in the same window. These merge errors would not be classified as an error in any window. 
+A smaller window size allows us to localize errors more precisely. On the other hand, if the window radius is less than the width of a typical boundary, it is possible that two objects participating in a merge error never appear in the same window. These merge errors would not be classified as an error in any window.
 
 We could use a less stringent measure than pixel-wise equality that disregards small perturbations of the boundaries of objects. However, our proposed segmentations are all composed of the same building blocks (supervoxels) as the ground truth segmentation, so this is not an issue for us.
 
@@ -116,7 +116,7 @@ We define the \textit{combined error map} as $\sum_{Obj} Err(Obj) * Obj$ where $
 \subsection{Architecture}
 We take a fully supervised approach to error detection. We implement error detection using a multiscale 3D convolutional neural network. The architecture is detailed in ~\ref{appendix:architecture}. Its design is informed by experience with convolutional networks for boundary detection (see \cite{kisuk}) and reflects recent trends in neural network design \cite{unet,resnet}. Its field of view is $P_x\times P_y\times P_z=318\times 318\times 33$ (which is roughly cubic in physical size given the anisotropic resolution of our dataset). The network computes (downsamplings of) $Err_{46 \times 46 \times 7}$, $Err_{98 \times 98 \times 12}$, and $Err_{318 \times 318 \times 33}$. At test time, we perform inference in overlapping windowsand conservatively blend the output from overlapping windows using a maximum operation.
 
-We trained two variants, one of which takes as input only $Obj$, and another which additionally receives as input the original image. 
+We trained two variants, one of which takes as input only $Obj$, and another which additionally receives as input the original image.
 
 \section{Error Correction}
 \subsection{Task Specification}
@@ -184,7 +184,7 @@ Our baseline segmentation was produced using a standard pipeline of multiscale c
 In this section, we describe our procedure for choosing a random point location in a segmentation. Uniformly random sampling is unsatisfactory since large objects such as dendritic trunks will be overrepresented. Instead, given a segmentation, we sample a location $x,y,z$ with probability inversely proportional to the fraction of a window of size $128\times 128 \times 16$ centred at $x,y,z$ which is occupied by the object containing pixel $x,y,z$.
 
 \subsection{Error Detection Training Data}
-An initial segmentation containing errors was produced using our baseline boundary detection network combined with mean affinity agglomeration at a threshold of 0.3. Point locations were sampled according to the sampling procedure specified in \ref{sec:sampling}. We augmented all of our data with rotations and reflections. 
+An initial segmentation containing errors was produced using our baseline boundary detection network combined with mean affinity agglomeration at a threshold of 0.3. Point locations were sampled according to the sampling procedure specified in \ref{sec:sampling}. We augmented all of our data with rotations and reflections.
 
 \subsection{Error Correction Training Data}
 We sampled locations in the ground truth segmentation as in $\ref{sec:sampling}$. At each location $x,y,z$, we generated a training example as follows. We selected a random subset of the objects in the window centred on $x,y,z$ including the object overlapping the central pixel. (To be precise, we chose a number $p$ uniformly at random from $[0,1]$, and then selected each segment in the window with probability $p$ in addition to the central object.) The input is a binary image representing the union of the selected objects along with the original EM image, and the desired output is a binary image representing only the central object. The dataset was augmented with rotations, reflections, simulated misalignments and missing sections.
@@ -237,7 +237,7 @@ We trained one error detector with access to the original image and one without.
 \end{table}
 In order to demonstrate the importance of error detection in error correction, we applied our error correction algorithm both with and without the auxiliary ``advice'' input channel having error-free objects zeroed out. The error correction network was simultaneously trained with and without advice, so this comparison is fair. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
 
-It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Recall that the variation of information between two segmentations may be computed as 
+It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Recall that the variation of information between two segmentations may be computed as
 \begin{align*}
 	VI_{split}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/p_i)\\
 	VI_{merge}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/q_j)\\
@@ -287,7 +287,7 @@ We expect that significant improvements in the accuracy of error detection could
 
 An error detection module has many potential uses beyond the ones presented here. For example, we could use error detection to direct ground truth annotation effort toward mistakes. If sufficiently accurate, it could also be used directly as a learning signal for segmentation algorithms on unlabelled data.
 
-Within the broader context of machine learning, our approach may be compared to other strategies for structured prediction problems. A relevant approach is the use of the conditional generative adversarial framework, in which one simultaneously trains a prediction network and an discriminator network which enforces structural constraints on the output \cite{cgan1,cgan2}. We do not co-train our error correction and error detection networks, but this could be the subject of future work. 
+Within the broader context of machine learning, our approach may be compared to other strategies for structured prediction problems. A relevant approach is the use of the conditional generative adversarial framework, in which one simultaneously trains a prediction network and an discriminator network which enforces structural constraints on the output \cite{cgan1,cgan2}. We do not co-train our error correction and error detection networks, but this could be the subject of future work.
 
 Our approach may also be compared with models for visual attention in the literature (for example, \cite{recurrent_attention}). Recurrent neural networks are able to learn in an end-to-end way how to find which parts of an image are relevant to the given task. In contrast, we have a fixed policy for which objects to attend to: we attend to those objects which likely contain errors. One of our central findings is that this policy is highly selective and improves segmentation performance.
 
@@ -298,11 +298,11 @@ our algorithms at scale. HSS secured funding and played an advisory role.
 
 \section{Acknowledgements}
 The dataset used for this project was acquired at the Allen Institute for Brain Science.
-The ground truth for this project was created by Ben Silverman, Merlin Moore, Sarah Morejohn, 
+The ground truth for this project was created by Ben Silverman, Merlin Moore, Sarah Morejohn,
 Selden Koolman, Ryan Willie, Kyle Willie, and Harrison Macgowan. Kisuk Lee trained the boundary
 detectors used to generate our baseline segmentation. We thank Kisuk Lee for several
-helpful conversations and Nico Kemnitz for proofreading a draft of this paper. We thank 
-Jeremy Maitin-Shepard and the other contributors to the neuroglancer project for creating an 
+helpful conversations and Nico Kemnitz for proofreading a draft of this paper. We thank
+Jeremy Maitin-Shepard and the other contributors to the neuroglancer project for creating an
 invaluable visualization tool.
 
 We thank Barton Fiske of NVIDIA Corporation for providing us with early access to Titan X
