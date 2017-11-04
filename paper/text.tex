@@ -128,10 +128,10 @@ independent works of~\cite{neuralfabric,mdnet,gridnet}, they all lack this
 \emph{feedback recurrent} convolutional net interpretation. Recently
 \cite{pavel2017recurrent} and \cite{spoerer2017recurrent} proposed feedback
 convolutional nets as a better framework for object recognition and video
-segmentation respectively, we claim that our model architecture is more general
-and flexible as evidenced by the diverse shape of boundary detection,
-error-detecting and error-correcting nets~(Figure~\ref{fig:architecture} and
-supplementary Figure~1).
+segmentation, respectively. We think our model architecture is more general and
+flexible than the orthodox feedback convolutional nets, as evidenced by the
+diverse shape of boundary detection, error-detecting and error-correcting
+nets~(Figure~\ref{fig:architecture} and supplementary Figure~1).
 
 \section{Error detection}
 \subsection{Task specification: detecting split and merge errors}
@@ -381,26 +381,31 @@ An error detection module has many potential uses beyond the ones presented here
 %While $\cite{floodfilling}$ performs inference densely, we selectively apply our error correction module near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for this advantage.
 
 %Our main novelty relative to their approach is the use of the advice of an error detector to bias flood-filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood-filling networks.
-\newpage
-\subsubsection*{Author contributions and acknowledgements}
-JZ conceptualized the study and conducted most of the experiments and evaluation. IT (along with Will
-Silversmith) created much of the infrastructure necessary for visualization and
-running our algorithms at scale. KL produced the baseline segmentation. HSS
-helped with the writing.
+\newpage \subsubsection*{Author contributions and acknowledgements}
+JZ conceptualized the study and conducted most of the experiments and
+evaluation. IT (along with Will Silversmith) created much of the infrastructure
+necessary for visualization and running our algorithms at scale. KL produced the
+baseline segmentation. HSS helped with the writing.
 
-We are grateful to Clay Reid, Nuno da Costa, Agnes Bodor, Adam Bleckert, Dan Bumbarger, Derrick Britain, JoAnn Buchannan, and Marc Takeno for acquiring the TEM dataset at the Allen Institute for Brain Science.
-The ground truth annotation was created by Ben Silverman, Merlin Moore, Sarah Morejohn, Selden Koolman, Ryan Willie, Kyle Willie, and Harrison MacGowan.
-We thank Nico Kemnitz for proofreading a draft of this paper. We thank
-Jeremy Maitin-Shepard at Google and the other contributors to the neuroglancer project for creating an invaluable visualization tool.
+We are grateful to Clay Reid, Nuno da Costa, Agnes Bodor, Adam Bleckert, Dan
+Bumbarger, Derrick Britain, JoAnn Buchannan, and Marc Takeno for acquiring the
+TEM dataset at the Allen Institute for Brain Science. The ground truth
+annotation was created by Ben Silverman, Merlin Moore, Sarah Morejohn, Selden
+Koolman, Ryan Willie, Kyle Willie, and Harrison MacGowan. We thank Nico Kemnitz
+for proofreading a draft of this paper. We thank Jeremy Maitin-Shepard at Google
+and the other contributors to the neuroglancer project for creating an
+invaluable visualization tool.
 
 We acknowledge NVIDIA Corporation for providing us with early access to Titan X
-Pascal GPU used in this research, and Amazon for assistance through an AWS Research Grant. This research was supported by the Mathers Foundation and the Intelligence Advanced
-Research Projects Activity (IARPA) via Department of Interior/ Interior Business Center (DoI/IBC)
-contract number D16PC0005. The U.S. Government is authorized to reproduce and distribute reprints
-for Governmental purposes notwithstanding any copyright annotation thereon. Disclaimer: The views
-and conclusions contained herein are those of the authors and should not be interpreted as necessarily
-representing the official policies or endorsements, either expressed or implied, of IARPA, DoI/IBC,
-or the U.S. Government.
+Pascal GPU used in this research, and Amazon for assistance through an AWS
+Research Grant. This research was supported by the Mathers Foundation and the
+Intelligence Advanced Research Projects Activity (IARPA) via Department of
+Interior/ Interior Business Center (DoI/IBC) contract number D16PC0005. The U.S.
+Government is authorized to reproduce and distribute reprints for Governmental
+purposes notwithstanding any copyright annotation thereon. Disclaimer: The views
+and conclusions contained herein are those of the authors and should not be
+interpreted as necessarily representing the official policies or endorsements,
+either expressed or implied, of IARPA, DoI/IBC, or the U.S. Government.
 
 \bibliography{bib}
 
