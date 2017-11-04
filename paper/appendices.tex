@@ -47,7 +47,7 @@ detection, which will be described in detail in the following section. (The same
 \emph{class} of architecture was employed in error detection and error
 correction. See main text.)
 
-\subsection{\textsl{DeltaNet}: a densely multiscale convolution network}
+\subsection{Network architecture}
 \label{sec:deltanet}
 
 \begin{figure}[!b]
@@ -68,33 +68,32 @@ $z$ (blue) affinity map, respectively.}
 \label{fig:boundary_detector}
 \end{figure}
 
-Our proposed densely multiscale 3D convolutional network (\emph{DeltaNet}) for
-neuronal boundary detection is illustrated in
-Figure~\ref{fig:boundary_detector}. DeltaNet is built upon U-Net~\cite{unet}
-with several interesting architectural augmentation. DeltaNet can be viewed as a
-pyramidal stack of the basic computational module (diamond-shaped box in
-Figure~\ref{fig:boundary_detector}). This diamond-shaped module can be
-interpreted as a residual building block (see Figure 2 in~\cite{resnet}) with
-two residual pathways, one top-down and the other bottom-up. Thus DeltaNet is
-\emph{fully residual} in the sense that every computational pathway involving
-horizontal information flow is passing through the residual module. Moreover,
-every residual module refines its input representation by integrating both
-top-down and bottom-up information, thus allowing for \emph{dense} intermixing
-of multiscale features. DeltaNet's \emph{dense} and \emph{fully residual}
-architecture allows an incremental and iterative top-down/bottom-up refinement
-of internal representation, which is in contrast to U-Net and variants' more
-restricted coarse-to-fine top-down
+Our proposed densely multiscale 3D convolutional network for neuronal boundary
+detection is illustrated in Figure~\ref{fig:boundary_detector}. Our model is
+built upon U-Net~\cite{unet} with several interesting architectural
+augmentation. Our model can be viewed as a pyramidal stack of the basic
+computational module (diamond-shaped box in Figure~\ref{fig:boundary_detector}).
+This diamond-shaped module can be interpreted as a residual building block (see
+Figure 2 in~\cite{resnet}) with two residual pathways, one top-down and the
+other bottom-up. Thus our model is \emph{fully residual} in the sense that every
+computational pathway involving horizontal information flow is passing through
+the residual module. Moreover, every residual module refines its input
+representation by integrating both top-down and bottom-up information, thus
+allowing for \emph{dense} intermixing of multiscale features. Our model's
+\emph{dense} and \emph{fully residual} architecture allows an incremental and
+iterative top-down/bottom-up refinement of internal representation, which is in
+contrast to U-Net and variants' more restricted coarse-to-fine top-down
 refinement~\cite{pinheiro2016refine,lin2016pyramid}.
 
 From a different point of view, Figure~\ref{fig:unfold} illustrates another
 important motivation for our densely multiscale convolutional net architecture.
-DeltaNet can be viewed as a feedback recurrent convolutional network unrolled in
-time (Figure~\ref{fig:unfold}). Weight-sharing across time makes a DeltaNet
+Our model can be viewed as a feedback recurrent convolutional network unrolled
+in time (Figure~\ref{fig:unfold}). Weight-sharing across time makes a our model
 exactly equivalent to a convolutional net with recurrent feedback connections
 unfolded through time, and this novel perspective provides a better framework
-for understanding one of the unique characteristics of DeltaNet, i.e., the
+for understanding one of the unique characteristics of our model, i.e., the
 incremental refinement of internal representation by interative integration of
-top-down and bottom-up information. DeltaNet's internal representation is
+top-down and bottom-up information. Our net's internal representation is
 incremetally and iteratively refined over time by integrating the top-down
 contextual information conveyed through the feedback recurrent connnections and
 the higer spatial-frequency information relayed through the bottom-up
@@ -115,7 +114,7 @@ the images in our dataset, we design our networks such that the first
 convolutions are exclusively 2D while later convolutions are 3D (see Figure~\ref{fig:boundary_detector}). The field of
 view of a unit in the higher layers is therefore roughly cubic. To limit the
 number of parameters in our model, we factorize all 3D convolutions into a 2D
-convolution followed by a 1D convolution in $z$-dimension. We employe
+convolution followed by a 1D convolution in $z$-dimension. We employ
 exponential linear units (ELUs,~\cite{elu}) for nonlinearity, except for the
 output layer with logistic activation functions.
 
@@ -141,7 +140,9 @@ training iteration. The training lasted for $800$K iterations until convergence,
 which took about five days on a single NVIDIA Titan X Pascal GPU.
 
 \subsection{Inference and postprocessing}
-We perform \emph{overlap-blending} inference followed by watershed and mean affinity agglomeration~\cite{kisuk}. We refer the interested readers to~\cite{kisuk} for further details.
+We perform \emph{overlap-blending} inference followed by watershed and mean
+affinity agglomeration~\cite{kisuk}. We refer the interested readers
+to~\cite{kisuk} for further details.
 
 %-------------------------------------------------------------------------------
 % Section B. Network Architecture
@@ -179,6 +180,7 @@ Both quantities have units of bits. $VI_\text{split}(i)$ is zero iff ground trut
 The error-detecting and error-correcting networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer, initialized with $\alpha=0.001$, $\beta_1=0.95$, $\beta_2=0.9995$, and $\epsilon=0.1$ \cite{adam}.   Both nets were trained until the loss on a validation set plateaued. The error-detecting net was trained for $700$K iterations (approximately one week), while the error-correcting net was trained for $1.7$M iterations (approximately three weeks).
 
 % \end{appendices}
+\newpage
 
 \bibliography{bib}
 
