@@ -40,32 +40,35 @@ In this section, we describe our baseline segmentation pipeline, which is simila
 
 \subsection{Network architecture}
 
-Our proposed densely multiscale 3D convolutional network architecture for
-neuronal boundary detection is shown in Figure~\ref{fig:boundary_detector}. Our
-model is built upon U-Net with several interesting architectural augmentations.
-
-% First, JNet is much more dense than U-Net~\cite{unet} in the sense that its computation graph representation has many more internal nodes and edges,
-% allowing more intensive computation compared to U-Net.
-
-JNet can be viewed as a pyramidal stack of the basic computational modules as
-shown in Figure~\ref{fig:boundary_detector}. This diamond-shaped module can be
-interpreted as a residual building block (see Figure 2 in~\cite{resnet}) with
-two residual connections, where one is top-down and the other is bottom-up. Thus
-JNet is fully residual in the sense that every computational pathway involving
-horizontal information flow is supposed to pass through the residual modules.
-Moreover, each residual module refines its input representation by integrating
-both top-down and bottom-up information.
-
-Lastly, as shown in Figure~\ref{fig:boundary_detector}, JNet's dense and fully
-residual architecture allows an incremental refinement of internal
-representation by iterative integration of top-down and bottom-up information.
-
 \begin{figure}[!b]
 \centering
 \includegraphics[width=1.0\linewidth]{baseline.pdf}
-
 \caption{Architecture for the baseline neuronal boundary detection. Each node represents a layer and the number inside represents the number of feature maps. The layers closer to the top of the diagram have lower resolution than the layers near the bottom. The diagonal arrows represent strided convolutions, while the horizontal arrows represent skip connections.}
 \label{fig:boundary_detector}
+\end{figure}
+
+Our proposed densely multiscale 3D convolutional network for neuronal boundary
+detection is illustrated in Figure~\ref{fig:boundary_detector}. Our model is
+built upon U-Net~\cite{unet} with several interesting architectural
+augmentation. [JNet] can be viewed as a pyramidal stack of the basic
+computational module (diamond-shaped box in Figure~\ref{fig:boundary_detector}).
+This diamond-shaped module can be interpreted as a residual building block (see
+Figure 2 in~\cite{resnet}) with two residual pathways, where one is top-down and
+the other is bottom-up. Thus [JNet] is \emph{fully residual} in the sense that
+every computational pathway involving horizontal information flow is passing
+through the residual module. Moreover, every residual module refines its input
+representation by integrating both top-down and bottom-up information, thus
+allowing our model to \emph{densely} intermix inter-scale information. [JNet]'s
+\emph{dense} and \emph{fully residual} architecture allows an incremental
+refinement of internal representation by top-down and bottom-up integration,
+which is in contrast to U-Net's more restricted top-down refinement process in a
+coarse-to-fine manner.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=0.6\linewidth]{unfold.pdf}
+\caption{Feedback recurrent convolutional network.}
+\label{fig:unfold}
 \end{figure}
 
 \subsection{Dataset}
