@@ -99,7 +99,7 @@ In this paper, we support the intuition above by demonstrating high accuracy det
 Some of the design choices we made in our neural networks may be of interest to other researchers. Our error-correcting net is trained to produce a vector field via metric learning instead of directly producing an object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}. Our multiscale convolutional net architecture, while similar in spirit to UNet~\cite{unet}, has some novelty.  [Kisuk describe here, something about recurrence, weight sharing, etc.]
 
 \section{Error detection}
-\subsection{Task specification}
+\subsection{Task specification: detecting split and merge errors}
 \label{sec:detection_spec}
 \begin{figure}[t!]
 	\begin{center}
@@ -125,19 +125,17 @@ We could use a less stringent measure than pixel-wise equality that disregards s
 
 We define the \textit{combined error map} as $\sum_{Obj} Err(Obj) * Obj$ where $*$ represents pointwise multiplication. In other words, we restrict the error map for each object to the object itself, and then sum the results. The figures in this paper show the \textit{combined error map}.
 
-\subsection{Network architecture}
+\subsection{Architecture of the error-detecting net}
 We take a fully supervised approach to error detection. We implement error detection using a multiscale 3D convolutional network. The architecture is detailed in Appendix~\ref{appendix:architecture}. Its design is informed by experience with convolutional networks for neuronal boundary detection (see \cite{kisuk}) and reflects recent trends in neural network design \cite{unet,resnet}. Its field of view is $P_x\times P_y\times P_z=318\times 318\times 33$ (which is roughly cubic in physical size given the anisotropic resolution of our dataset). The network computes (a downsampling of) $Err_{46 \times 46 \times 7}$. At test time, we perform inference in overlapping windows and conservatively blend the output from overlapping windows using a maximum operation.
 
 We trained two variants, one of which takes as input only $Obj$, and another which additionally receives as input the raw image.
 
 \section{Error correction}
-\subsection{Task specification}
+\subsection{Task specification: object mask pruning}
 Given an image patch of size $P_x\times P_y\times P_z$ and a candidate object mask of the same dimensions, the $\textit{object mask pruning}$ task is to erase all voxels which do not belong to the object overlapping the central pixel.
 
-At test time, the input binary mask contains the union of all objects with a detected error.
-
-\subsection{Network architecture}
-Yet again, we implement error correction using a multiscale 3D convolutional network. The architecture is detailed in Appendix~\ref{appendix:architecture}. One difficulty with training a neural network to reconstruct the object containing the central pixel is that the desired output can change drastically as the central pixel moves between objects. We use an intermediate representation whose role is to soften this dependence on the location of the central pixel. The desired intermediate representation is a $k$ dimensional vector $v(x,y,z)$ at each point $(x,y,z)$ such that points within the same object have similar vectors and points in different objects have different vectors. We transform this vector field into a binary image $M$ representing the object overlapping the central pixel as follows:
+\subsection{Architecture of the error-correcting net}
+Error correction is implemented using a multiscale 3D convolutional network. The architecture is detailed in Appendix~\ref{appendix:architecture}. One difficulty with training a neural network to reconstruct the object containing the central pixel is that the desired output can change drastically as the central pixel moves between objects. We use an intermediate representation whose role is to soften this dependence on the location of the central pixel. The desired intermediate representation is a $k$ dimensional vector $v(x,y,z)$ at each point $(x,y,z)$ such that points within the same object have similar vectors and points in different objects have different vectors. We transform this vector field into a binary image $M$ representing the object overlapping the central pixel as follows:
 
 \begin{equation*}
 	M(x,y,z)=\exp\left( -||v(x,y,z)-v(P_x/2,P_y/2,P_z/2)||^2 \right).
@@ -145,7 +143,7 @@ Yet again, we implement error correction using a multiscale 3D convolutional net
 
 When an over-segmentation is available, we replace $v(P_x/2,P_y/2,P_z/2)$ with the average of $v$ over the supervoxel containing the central pixel. This trick makes it unnecessary to centre our windows far away from a boundary, as was necessary in \cite{floodfilling}. Note that we backpropagate through the transform $M$, so the vector representation may be seen as an implementation detail and the final output of the network is just a (soft) binary image.
 
-\section{Putting it together}
+\section{How the error detector can ``advise'' the error corrector}
 \begin{figure}
 \begin{center}
 	\includegraphics[width=0.65\linewidth]{errors.jpg}
@@ -158,6 +156,9 @@ When an over-segmentation is available, we replace $v(P_x/2,P_y/2,P_z/2)$ with t
 	\caption{The supervoxels assembled in accordance with the output of the error correction network.}
 \end{center}
 \end{figure}
+
+At test time, the input binary mask contains the union of all objects with a detected error.
+
 In this section, we describe how our error detector and error corrector are combined at test time. We begin with an initial segmentation whose remaining errors are assumed to be sparsely distributed. During the error correction phase, we iteratively update a segmentation represented as the connected components of a graph $G$ whose vertices are segments in a strict over-segmentation (henceforth called supervoxels). We also maintain the combined error map associated with the current segmentation. We binarize the error map by thresholding it at 0.25.
 
 Now we iteratively choose a location $\ell=(x,y,z)$ which has value 1 in the binarized combined error map. In a $P_x \times P_y \times P_z$ window centred on $\ell$, we prepare an input for the error corrector by taking the union of all segments containing at least one white pixel in the error map. The error correction network produces from this input a binary image $M$ representing the object containing the central pixel. For each supervoxel $S$ touching the central $P_x/2 \times P_y/2 \times P_z/2$ window, let $M(S)$ denote the average value of $M$ inside $S$. If $M(S) \not \in [0.1,0.9]$ for all $S$ in the relevant window (i.e. the error corrector is confident in its prediction for each supervoxel), we add to $G$ a clique on $\{S \mid M(S) > 0.9\}$ and delete from $G$ all edges between $\{S \mid M(S) < 0.1\}$ and $\{S \mid M(S) > 0.9\}$. The effect of these updates is to change $G$ to locally agree with $M$. Finally, we update the combined error map by applying the error detector at all locations where its decision could have changed.
@@ -173,9 +174,9 @@ We iterate until every location is zero in the error map or has been covered by 
 
 %Our dataset was culled from an unfortunate soul named Pinky. He had a big heart but a small brain, which made him perfect for our experiment. May he rest in peace.
 
-Our dataset is a sample of mouse primary visual cortex (V1) acquired using transmission electron microscopy at the Allen Institute for Brain Science. The voxel resolution is $3.6~\text{nm} \times 3.6~\text{nm} \times 40~\text{nm}$.
+Our dataset is a sample of mouse primary visual cortex (V1) acquired using serial section transmission electron microscopy at the Allen Institute for Brain Science. The voxel resolution is $3.6~\text{nm} \times 3.6~\text{nm} \times 40~\text{nm}$.
 
-A team of tracers produced multiple volumes of gold standard dense reconstruction, which amount to $530$ Mvoxels. These volumes were used to train a neuronal boundary detection network. We applied the resulting boundary detector to a larger volume of size $4800$ Mvoxels to produce a preliminary segmentation, which was then proofread by the tracers. This bootstrapped ground truth was used to train the error detector and corrector. A subvolume of size $910$ Mvoxels was reserved for validation, and a subvolume of size $910$ Mvoxels was reserved for testing.
+Human experts used the VAST software tool \cite{kasthuri2015saturated, VAST} to densely reconstruct multiple volumes that amounted to $530$ Mvoxels of ground truth annotation. These volumes were used to train a neuronal boundary detection network (see Appendix for architecture). We applied the resulting boundary detector to a larger volume of size $4800$ Mvoxels to produce a preliminary segmentation, which was then proofread by the tracers. This bootstrapped ground truth was used to train the error detector and corrector. A subvolume of size $910$ Mvoxels was reserved for validation, and a subvolume of size $910$ Mvoxels was reserved for testing.
 
 Producing the gold standard segmentation required a total of $\sim 560$ tracer hours, while producing the bootstrapped ground truth required $\sim 670$ tracer hours.
 
