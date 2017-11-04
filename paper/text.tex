@@ -65,8 +65,8 @@ and a candidate object mask. The task is to reduce the object mask to
 generate the true object. We train multiscale 3D convolutional
 networks to perform both tasks, and then show how the nets can be
 combined to achieve significant improvements in segmentation
-accuracy. Namely, the error detecting net is used to create the
-object mask that is the input to the error correcting net.
+accuracy. Namely, the error-detecting net is used to create the
+object mask that is the input to the error-correcting net.
 \end{abstract}
 
 \section{Introduction}
@@ -105,7 +105,7 @@ Some of the design choices we made in our neural networks may be of interest to 
 	\begin{center}
 	\begin{subfigure}[t]{0.45\textwidth}
 		\includegraphics[width=1.0\linewidth]{detection_task.jpg}
-		\caption{Error detection task for split (top) and merge (bottom) errors. The desired output is an error map (red). A voxel in the error map is red if and only if a window centered on it contains a split or merge error.}
+		\caption{Error detection task for split (top) and merge (bottom) errors. The desired output is an error map (red). A voxel in the error map is red if and only if a window centered on it contains a split or merge error. We also consider a variant of the task in which the object mask is the sole input; the grayscale image is not used.}
 		\label{fig:error_detection_cartoon}
 	\end{subfigure}
 \hfill
@@ -132,9 +132,7 @@ We trained two variants, one of which takes as input only $Obj$, and another whi
 
 \section{Error correction}
 \subsection{Task specification: object mask pruning}
-Given an image patch of size $P_x\times P_y\times P_z$ and a candidate object mask of the same dimensions, the $\textit{object mask pruning}$ task is to erase all voxels which do not belong to the object overlapping the central voxel.
-
-At test time, the input binary mask contains the union of all objects with a detected error in the window. Unless the error detector makes a mistake, this is a strict superset of the object overlapping the central voxel. Hence, the object mask pruning primitive may be used to resolve both split and merge errors.
+Given an image patch of size $P_x\times P_y\times P_z$ and a candidate object mask of the same dimensions, the $\textit{object mask pruning}$ task is to erase all voxels which do not belong to the true object overlapping the central voxel.  The candidate object mask is assumed to be a superset of the true object.
 
 \subsection{Architecture of the error-correcting net}
 Yet again, we implement error correction using a multiscale 3D convolutional network. The architecture is detailed in Appendix~\ref{appendix:architecture}. One difficulty with training a neural network to reconstruct the object containing the central voxel is that the desired output can change drastically as the central voxel moves between objects. We use an intermediate representation whose role is to soften this dependence on the location of the central voxel. The desired intermediate representation is a $k$ dimensional vector $v(x,y,z)$ at each point $(x,y,z)$ such that points within the same object have similar vectors and points in different objects have different vectors. We transform this vector field into a binary image $M$ representing the object overlapping the central voxel as follows:
@@ -159,9 +157,21 @@ where $(0,0,0)$ is the central voxel. When an over-segmentation is available, we
 \end{center}
 \end{figure}
 
-At test time, the input binary mask contains the union of all objects with a detected error.
+Suppose that we would like to correct the errors in a baseline
+segmentation.  Obviously, the error-detecting net can be used to find
+locations where the error-correcting net can be applied
+\cite{multipass}.  Less obviously, the error-detecting net can be used
+to construct the object mask that is the input to the error-correcting
+net. We refer to this object mask as the ``advice mask'' and its construction is important because the baseline object to be corrected might contain split as well as merge errors, while the object mask pruning task can correct only merge errors.
 
-In this section, we describe how our error detector and error corrector are combined at test time. We begin with an initial segmentation whose remaining errors are assumed to be sparsely distributed. During the error correction phase, we iteratively update a segmentation represented as the connected components of a graph $G$ whose vertices are segments in a strict over-segmentation (henceforth called supervoxels). We also maintain the combined error map associated with the current segmentation. We binarize the error map by thresholding it at 0.25.
+The advice mask is defined is the union of the baseline object at the
+central pixel with all other baseline objects in the window that
+contain errors as judged by the error-detecting net. The advice mask is
+a superset of the true object overlapping the central voxel, assuming
+that the error-detecting net makes no mistakes.  Therefore advice is
+suitable as an input to the object mask pruning task.
+
+The details of the above procedure are as follows. We begin with an initial baseline segmentation whose remaining errors are assumed to be sparsely distributed. During the error correction phase, we iteratively update a segmentation represented as the connected components of a graph $G$ whose vertices are segments in a strict over-segmentation (henceforth called supervoxels). We also maintain the combined error map associated with the current segmentation. We binarize the error map by thresholding it at 0.25.
 
 Now we iteratively choose a location $\ell=(x,y,z)$ which has value 1 in the binarized combined error map. In a $P_x \times P_y \times P_z$ window centred on $\ell$, we prepare an input for the error corrector by taking the union of all segments containing at least one white voxel in the error map. The error correction network produces from this input a binary image $M$ representing the object containing the central voxel. For each supervoxel $S$ touching the central $P_x/2 \times P_y/2 \times P_z/2$ window, let $M(S)$ denote the average value of $M$ inside $S$. If $M(S) \not \in [0.1,0.9]$ for all $S$ in the relevant window (i.e. the error corrector is confident in its prediction for each supervoxel), we add to $G$ a clique on $\{S \mid M(S) > 0.9\}$ and delete from $G$ all edges between $\{S \mid M(S) < 0.1\}$ and $\{S \mid M(S) > 0.9\}$. The effect of these updates is to change $G$ to locally agree with $M$. Finally, we update the combined error map by applying the error detector at all locations where its decision could have changed.
 
