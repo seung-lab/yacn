@@ -122,15 +122,16 @@ new in computer vision
 \cite{harley2015metric,fathi2017metric,brabandere2017metric}. Our multiscale
 convolutional net architecture, while similar in spirit to the populur
 U-Net~\cite{unet}, has some novelty. With proper weight sharing, our model can
-be viewed as a feedback recurrent convolutional net unrolled in time (see
-Appendix for details). Although our model architecture is closely related to the
+be viewed as a feedback recurrent convolutional net unrolled in time (see the
+appendix for details). Although our model architecture is closely related to the
 independent works of~\cite{neuralfabric,mdnet,gridnet}, they all lack this
 \emph{feedback recurrent} convolutional net interpretation. Recently
 \cite{pavel2017recurrent} and \cite{spoerer2017recurrent} proposed feedback
 convolutional nets as a better framework for object recognition and video
-segmentation, we claim that our model architecture is more general as evidenced
-in the diverse shape of boundary detection, error-detecting and error-correcting
-nets~(Figure~\ref{fig:architecture} and Figure~A1 in the appendix).
+segmentation respectively, we claim that our model architecture is more general
+and flexible as evidenced by the diverse shape of boundary detection,
+error-detecting and error-correcting nets~(Figure~\ref{fig:architecture} and
+supplementary Figure~1).
 
 \section{Error detection}
 \subsection{Task specification: detecting split and merge errors}
@@ -395,7 +396,7 @@ contract number D16PC0005. The U.S. Government is authorized to reproduce and di
 for Governmental purposes notwithstanding any copyright annotation thereon. Disclaimer: The views
 and conclusions contained herein are those of the authors and should not be interpreted as necessarily
 representing the official policies or endorsements, either expressed or implied, of IARPA, DoI/IBC,
-or the U.S. Government. 
+or the U.S. Government.
 
 \bibliography{bib}
 
