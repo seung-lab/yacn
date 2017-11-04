@@ -123,7 +123,7 @@ new in computer vision
 convolutional net architecture, while similar in spirit to the populur
 U-Net~\cite{unet}, has some novelty. With proper weight sharing, our model can
 be viewed as a feedback recurrent convolutional net unrolled in time (see
-Appendix for details). Although our model architecture is closely related to the
+the appendix for details). Although our model architecture is closely related to the
 independent works of~\cite{neuralfabric,mdnet,gridnet}, they all lack this \emph{feedback recurrent} convolutional net interpretation.
 
 \section{Error detection}
@@ -282,7 +282,7 @@ We trained one error detector with access to the raw image and one without. The 
 
 In order to demonstrate the importance of error detection to error correction, we ran two experiments: one in which the binary mask input to the error corrector was simply the union of all segments in the window (``without advice''), and one in which the binary mask was the union of all segments with a detected error (``with advice''). In the ``without advice'' mode, the network is essentially asked to reconstruct the object overlapping the central voxel in one shot. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
 
-It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the cumulative distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See the appendix \ref{appendix:vi} for a precise definition of $VI(i)$.
+It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the cumulative distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See the appendix for a precise definition of $VI(i)$.
 
 The number of errors from the set in $\ref{sec:detection_results}$ that were fixed or introduced by our iterative refinement procedure is shown in \ref{table:errors_fixed}. These numbers should be taken with a grain of salt since topologically insignificant changes could result in errors. Regardless, it is clear that our iterative refinement procedure fixed a significant fraction of the remaining errors and that ``advice'' improves the error corrector.
 
