@@ -96,7 +96,7 @@ In this paper, we support the intuition above by demonstrating high accuracy det
 
 %Furthermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
 
-Some of the design choices we made in our neural networks may be of interest to other researchers. Our error-correcting net is trained to produce a vector field via metric learning instead of directly producing an object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}. Our multiscale convolutional net architecture, while similar in spirit to UNet~\cite{unet}, has some novelty.  [Kisuk describe here, something about recurrence, weight sharing, etc.]
+Some of the design choices we made in our neural networks may be of interest to other researchers. Our error-correcting net is trained to produce a vector field via metric learning instead of directly producing an object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}. Our multiscale convolutional net architecture, while similar in spirit to the populur U-Net~\cite{unet}, has some novelty.  [Kisuk describe here, something about recurrence, weight sharing, etc.]
 
 \section{Error detection}
 \subsection{Task specification: detecting split and merge errors}
@@ -140,7 +140,7 @@ At test time, the input binary mask contains the union of all objects with a det
 Yet again, we implement error correction using a multiscale 3D convolutional network. The architecture is detailed in Appendix~\ref{appendix:architecture}. One difficulty with training a neural network to reconstruct the object containing the central voxel is that the desired output can change drastically as the central voxel moves between objects. We use an intermediate representation whose role is to soften this dependence on the location of the central voxel. The desired intermediate representation is a $k$ dimensional vector $v(x,y,z)$ at each point $(x,y,z)$ such that points within the same object have similar vectors and points in different objects have different vectors. We transform this vector field into a binary image $M$ representing the object overlapping the central voxel as follows:
 
 \begin{equation*}
-	M(x,y,z)=\exp\left( -||v(x,y,z)-v(0,0,0)||^2 \right).
+	M(x,y,z)=\exp\left( -||v(x,y,z)-v(0,0,0)||^2 \right),
 \end{equation*}
 
 where $(0,0,0)$ is the central voxel. When an over-segmentation is available, we replace $v(0,0,0)$ with the average of $v$ over the supervoxel containing the central voxel. This trick makes it unnecessary to centre our windows far away from a boundary, as was necessary in \cite{floodfilling}. Note that we backpropagate through the transform $M$, so the vector representation may be seen as an implementation detail and the final output of the network is just a (soft) binary image.

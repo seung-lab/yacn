@@ -40,12 +40,34 @@ In this section, we describe our baseline segmentation pipeline, which is simila
 
 \subsection{Network architecture}
 
+Our proposed multiscale 3D convolutional network architecture for neuronal
+boundary detection is shown in Figure~\ref{fig:boundary_detector}. Our model is
+built upon U-Net with several interesting architectural augmentations.
+
+First, JNet is much more dense than U-Net~\cite{unet} in the sense that its computation graph representation has many more internal nodes and edges,
+allowing more intensive computation compared to U-Net.
+
+Second, JNet can be viewed as a pyramidal stack of the basic computational
+modules as shown in Figure~\ref{fig:boundary_detector}. This diamond-shaped
+module can be interpreted as a residual module (\cite{resnet}, inset of
+Figure~\ref{fig:boundary_detector}) with two residual connections, where one is
+top-down and the other is bottom-up.
+
+Thus JNet is fully residual in the sense that every computational pathway
+involving horizontal information flow is supposed to pass through the residual
+modules. Moreover, each residual module refines its input representation by
+integrating both top-down and bottom-up information.
+
+Lastly, as shown in Figure~\ref{fig:boundary_detector}, JNet's dense and fully
+residual architecture allows an incremental refinement of internal
+representation by iterative integration of top-down and bottom-up information.
+
 \begin{figure}[!b]
 \centering
 \includegraphics[width=1.0\linewidth]{baseline.pdf}
 
 \caption{Architecture for the baseline neuronal boundary detection. Each node represents a layer and the number inside represents the number of feature maps. The layers closer to the top of the diagram have lower resolution than the layers near the bottom. The diagonal arrows represent strided convolutions, while the horizontal arrows represent skip connections.}
-\label{fig:architecture}
+\label{fig:boundary_detector}
 \end{figure}
 
 \subsection{Dataset}
@@ -63,7 +85,7 @@ optimizer~\cite{adam}, initialized with $\alpha=0.001$, $\beta_1=0.9$,
 $\beta_2=0.999$, and $\epsilon=0.01$. The network weights were initialized
 following He et al.~\cite{he2015delving}. The learning rate (or step size
 parameter $\alpha$ in the Adam optimizer) was halved when validation loss
-plateaud out, five times in total at $35$K, $175$K, $250$K, $300$K, and
+plateaued out, five times in total at $35$K, $175$K, $250$K, $300$K, and
 $480$K training iterations. We used a single patch of size
 $158\times158\times32$ (i.e. minibatch of size 1) to compute gradients at each
 training iteration. The training lasted for $800$K iterations until convergence,
@@ -96,26 +118,26 @@ To limit the number of parameters in our model, we factorize all 3D convolutions
 \label{appendix:vi}
  Recall that the variation of information between two segmentations may be computed as
 \begin{align*}
-	VI_{split}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/p_i)\\
-	VI_{merge}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/q_j)\\
-	p_i&=\sum_j r_{ij}\\
-	q_j&=\sum_i r_{ij}
+	VI_\text{split}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/p_i),\\
+	VI_\text{merge}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/q_j),\\
+	p_i&=\sum_j r_{ij},\\
+	q_j&=\sum_i r_{ij},
 \end{align*}
-where $r_{ij}$ is the number of voxels in common between the $i^{th}$ segment of the ground truth segmentation and the $j^{th}$ segment of the proposed segmentation \cite{vi}.
+where $r_{ij}$ is the number of voxels in common between the $i^\text{th}$ segment of the ground truth segmentation and the $j^\text{th}$ segment of the proposed segmentation \cite{vi}.
 
 We define the split and merge scores for ground truth segment $i$ as
 \begin{align*}
-	VI_{split}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/p_i)\\
-	VI_{merge}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/q_j)
+	VI_\text{split}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/p_i),\\
+	VI_\text{merge}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/q_j),
 \end{align*}
-Both quantities have units of bits. $VI_{split}(i)$ is zero iff ground truth segment $i$ is contained within a segment in the proposed segmentation, while $VI_{merge}(i)$ is zero iff ground truth segment $i$ is the union of one or more segments in the proposed segmentation. The total score $VI_{split}$ or $VI_{merge}$ is a weighted sum of the per-object scores $VI_{split}(i)$, $VI_{merge}(i)$ respectively.
+Both quantities have units of bits. $VI_\text{split}(i)$ is zero iff ground truth segment $i$ is contained within a segment in the proposed segmentation, while $VI_\text{merge}(i)$ is zero iff ground truth segment $i$ is the union of one or more segments in the proposed segmentation. The total score $VI_\text{split}$ or $VI_\text{merge}$ is a weighted sum of the per-object scores $VI_\text{split}(i)$, $VI_\text{merge}(i)$ respectively.
 
 
 %-------------------------------------------------------------------------------
 % Section B. Training Details
 %-------------------------------------------------------------------------------
 \section{Training details}
-The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error-correcting network trained for 1,700,000 iterations (approximately three weeks).
+The error-detecting and error-correcting networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both nets were trained until the loss on a validation set plateaued. The error-detecting net was trained for $700$K iterations (approximately one week), while the error-correcting net was trained for $1.7$M iterations (approximately three weeks).
 
 \end{appendices}
 
