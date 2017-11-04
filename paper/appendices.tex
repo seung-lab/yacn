@@ -36,7 +36,11 @@
 \section{Baseline Neuronal Boundary Detection}
 \label{appendix:baseline}
 
-In this section, we describe our baseline segmentation pipeline, which is similar to what is described in~\cite{kisuk}.
+In this section, we describe our baseline segmentation pipeline, which is
+similar to what is described in~\cite{kisuk}. The major difference is our novel
+densely multiscale 3D convolutional network architecture for neuronal boundary
+detection. (The same \emph{class} of architecture was employed in error
+detection and error correction.)
 
 \subsection{Network architecture}
 
@@ -59,10 +63,22 @@ every computational pathway involving horizontal information flow is passing
 through the residual module. Moreover, every residual module refines its input
 representation by integrating both top-down and bottom-up information, thus
 allowing our model to \emph{densely} intermix inter-scale information. [JNet]'s
-\emph{dense} and \emph{fully residual} architecture allows an incremental
-refinement of internal representation by top-down and bottom-up integration,
-which is in contrast to U-Net's more restricted top-down refinement process in a
-coarse-to-fine manner.
+\emph{dense} and \emph{fully residual} architecture allows an incremental and
+iterative top-down and bottom-up refinement of internal representation, which is
+in contrast to U-Net and variants' more restricted top-down refinement process in a
+coarse-to-fine manner~\cite{pinheiro2016refine,lin2016pyramid}.
+
+From a different point of view, Figure~\ref{fig:unfold} illustrates another
+important motivation for our densely multiscale 3D convolutional network
+architecture. [JNet] can be viewed as a feedback recurrent convolutional network
+unrolled in time (Figure~\ref{fig:unfold}). Weight-sharing across time makes a
+[JNet] exactly equivalent to a convolutional net with recurrent feedback
+connections unfolded through time, and this novel perspective provides a better
+framework for understanding one of the unique characteristics of [JNet], i.e.,
+the incremental refinement of internal representation by interative integration
+of top-down and bottom-up information. The internal representation of a [JNet]
+is incremetally and iteratively refined over time by integrating the top-down
+contextual information conveyed by the feedback recurrent connnections.   
 
 \begin{figure}[!t]
 \centering
@@ -126,11 +142,7 @@ Both quantities have units of bits. $VI_\text{split}(i)$ is zero iff ground trut
 % Section B. Training Details
 %-------------------------------------------------------------------------------
 \section{Training details}
-<<<<<<< HEAD
-The error-detecting and error-correcting networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both nets were trained until the loss on a validation set plateaued. The error-detecting net was trained for $700$K iterations (approximately one week), while the error-correcting net was trained for $1.7$M iterations (approximately three weeks).
-=======
 The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}, initialized with $\alpha=0.001$, $\beta_1=0.95$, $\beta_2=0.9995$, and $\epsilon=0.1$. Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error-correcting network trained for 1,700,000 iterations (approximately three weeks).
->>>>>>> 9822e39a1b15218101657bcd23adc540923e5ff8
 
 \end{appendices}
 
