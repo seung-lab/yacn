@@ -147,9 +147,9 @@ We define the \textit{combined error map} as $\sum_{Obj} Err(Obj) * Obj$ where $
 \subsection{Architecture of the error-detecting net}
 \begin{figure}
 \centering
-\includegraphics[width=0.9\linewidth]{detector.pdf}
+\includegraphics[width=1.0\linewidth]{detector.pdf}
 \centering
-\includegraphics[width=0.9\linewidth]{corrector2.pdf}
+\includegraphics[width=1.0\linewidth]{corrector2.pdf}
 
 \caption{Architectures for the error-detecting and error-correcting nets
 respectively. Each node represents a layer and the number inside represents the
@@ -198,13 +198,13 @@ where $(0,0,0)$ is the central voxel. When an over-segmentation is available, we
 \section{How the error detector can ``advise'' the error corrector}
 \begin{figure}
 \begin{center}
-	\includegraphics[width=0.65\linewidth]{errors.jpg}
+	\includegraphics[width=0.8\linewidth]{errors.jpg}
 	\caption{An example of a mistake in the initial segmentation. The dendrite is missing a spine. The red overlay on the left shows the combined error map (defined in Section~\ref{sec:detection_spec}); the stump in the centre of the image was clearly marked as an error.}
 
-	\includegraphics[width=0.65\linewidth]{neighbours.jpg}
+	\includegraphics[width=0.8\linewidth]{neighbours.jpg}
 	\caption{The right shows all objects which contained  a detected error in the vicinity. For clarity, each supervoxel was drawn with a different colour. The union of these objects is the binary mask which is provided as input to the error correction network. For clarity, these objects were clipped to lie within the white box representing the field of view of our error correction network. The output of the error correction network is overlaid in blue on the left.}
 
-	\includegraphics[width=0.65\linewidth]{final.jpg}
+	\includegraphics[width=0.8\linewidth]{final.jpg}
 	\caption{The supervoxels assembled in accordance with the output of the error correction network.}
 \end{center}
 \end{figure}
@@ -260,7 +260,6 @@ taken at a mean affinity agglomeration threshold of 0.23, which minimizes the
 \textsl{variation of information} error metric~\cite{meila2007,vi} on the test
 volumes.
 
-\newpage
 \subsection{Training procedures}
 \paragraph{Sampling procedure}
 \label{sec:sampling}
@@ -315,14 +314,14 @@ Merge errors qualitatively appear to be especially easy for the network to detec
 
 \begin{figure}
 \begin{center}
-	\includegraphics[width=0.65\linewidth]{pr.pdf}
+	\includegraphics[width=0.85\linewidth]{pr.pdf}
 	\caption{Precision and recall for error detection, both with and without access to the raw image. In the test volume, there are $8248$ error free locations and $944$ locations with errors. In practice, we use threshold which guarantees >~95\% recall and >~85\% precision.}
 	\label{fig:error_detection_pr}
 \end{center}
 \end{figure}
 
 \begin{figure}
-	\begin{minipage}[t]{0.45\textwidth}
+	\begin{minipage}[t]{0.47\textwidth}
 \begin{center}
 	\includegraphics[width=1.0\linewidth]{x_error.jpg}
 	\caption{An example of a detected error. The right shows two incorrectly
@@ -333,7 +332,7 @@ Merge errors qualitatively appear to be especially easy for the network to detec
 \end{center}
 \end{minipage}
 \hfill
-	\begin{minipage}[t]{0.45\textwidth}
+	\begin{minipage}[t]{0.47\textwidth}
 \begin{center}
 	\includegraphics[width=1.0\linewidth]{difficult.jpg}
 	\caption{A difficult location with missing data in one section combined with a misalignment between sections. The error-correcting net was able to trace across the missing data.}
@@ -390,7 +389,7 @@ Figure~\ref{fig:difficult}.
 
 \begin{figure}
 \begin{center}
-\includegraphics[width=0.65\linewidth]{per_object_vi.pdf}
+\includegraphics[width=0.9\linewidth]{per_object_vi.pdf}
 \caption{Per-object VI scores for the 940 reconstructed objects in our test volume. Almost 800 objects are completely error free in our segmentation. These objects are likely all axons; almost every dendrite is missing a few spines.}
 \label{fig:decomp_vi_scores}
 \end{center}
@@ -483,7 +482,7 @@ natural in view of recent work on generative adversarial networks
 %While $\cite{floodfilling}$ performs inference densely, we selectively apply our error correction module near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for this advantage.
 
 %Our main novelty relative to their approach is the use of the advice of an error detector to bias flood-filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood-filling networks.
-\newpage \subsubsection*{Author contributions}
+\subsubsection*{Author contributions}
 JZ conceptualized the study and conducted most of the experiments and
 evaluation. IT (along with Will Silversmith) created much of the infrastructure
 necessary for visualization and running our algorithms at scale. KL produced the
