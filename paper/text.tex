@@ -89,9 +89,7 @@ In this paper, we support the intuition above by demonstrating high accuracy det
 
 %Furthermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
 
-A further novelty of our work is that our error-correcting net is trained to produce a vector field via metric learning, and the vector field is used to prune the object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}.
-
-Finally, our multiscale convolutional net architecture, while similar in spirit to UNet [cite], has some novelty.  [Kisuk describe here]
+Some of the design choices we made in our neural networks may be of interest to other researchers. Our error-correcting net is trained to produce a vector field via metric learning instead of directly producing an object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}. Our multiscale convolutional net architecture, while similar in spirit to UNet [cite], has some novelty.  [Kisuk describe here, something about recurrence, weight sharing, etc.]
 
 
 \section{Error detection}
@@ -147,7 +145,7 @@ When an over-segmentation is available, we replace $v(P_x/2,P_y/2,P_z/2)$ with t
 	\caption{An example of a mistake in the initial segmentation. The dendrite is missing a spine. The red overlay on the left shows the combined error map (defined in Section~\ref{sec:detection_spec}); the stump in the centre of the image was clearly marked as an error.}
 
 	\includegraphics[width=0.65\linewidth]{neighbours.jpg}
-	\caption{The right shows all objects which contained  a detected error in the vicinity. This is the binary mask which is provided as input to the error correction network. For clarity, these objects were clipped to lie within the white box representing the field of view of our error correction network. The output of the error correction network is overlaid in blue on the left.}
+	\caption{The right shows all objects which contained  a detected error in the vicinity. For clarity, each supervoxel was drawn with a different colour. The union of these objects is the binary mask which is provided as input to the error correction network. For clarity, these objects were clipped to lie within the white box representing the field of view of our error correction network. The output of the error correction network is overlaid in blue on the left.}
 
 	\includegraphics[width=0.65\linewidth]{final.jpg}
 	\caption{The supervoxels assembled in accordance with the output of the error correction network.}
@@ -185,7 +183,7 @@ Here we describe our procedure for choosing a random point location in a segment
 \paragraph{Training of error detector}
 An initial segmentation containing errors was produced using our baseline neuronal boundary detector combined with mean affinity agglomeration at a threshold of 0.3. Point locations were sampled according to the sampling procedure specified in \ref{sec:sampling}. We augmented all of our data with rotations and reflections.
 
-\subsection{Training of error corrector}
+\paragraph{Training of error corrector}
 We sampled locations in the ground truth segmentation as in $\ref{sec:sampling}$. At each location $\ell = (x,y,z)$, we generated a training example as follows. Let $Obj_\ell$ be the ground truth object touching $\ell$. We selected a random subset of the objects in the window centred on $\ell$ including $Obj_\ell$. To be specific, we chose a number $p$ uniformly at random from $[0,1]$, and then selected each segment in the window with probability $p$ in addition $Obj_\ell$. The input is a binary mask representing the union of the selected objects along with the raw EM image, and the desired output is a binary mask representing only $Obj_\ell$. The dataset was augmented with rotations, reflections, simulated misalignments and missing sections~\cite{kisuk}.
 
 Note that this training procedure uses only the ground truth segmentation and is completely independent of the error detector and the baseline segmentataion. This convenient property is justified by the fact that if the error detector is perfect, the error corrector only ever receives as input unions of complete objects.
@@ -238,7 +236,7 @@ We trained one error detector with access to the raw image and one without. The 
   \end{tabular}
 \end{table}
 
-In order to demonstrate the importance of error detection in error correction, ran two experiments: one in which the binary mask input to the error corrector was simply the union of all segments in the window (``without advice''), and one in which the binary mask was the union of all segments with a detected error (``with advice''). In the ``without advice'' mode, the network is essentially asked to reconstruct the object overlapping the central pixel in one shot. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
+In order to demonstrate the importance of error detection to error correction, we ran two experiments: one in which the binary mask input to the error corrector was simply the union of all segments in the window (``without advice''), and one in which the binary mask was the union of all segments with a detected error (``with advice''). In the ``without advice'' mode, the network is essentially asked to reconstruct the object overlapping the central pixel in one shot. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
 
 It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See Appendix \ref{appendix:vi} for a precise definition of $VI(i)$.
 
@@ -356,7 +354,7 @@ In this section we describe
 %-------------------------------------------------------------------------------
 % Section B. Network Architecture
 %-------------------------------------------------------------------------------
-\section{Network Architectures}
+\section{Network architectures}
 \label{appendix:architecture}
 
 \begin{figure}
@@ -374,14 +372,10 @@ Due to the anisotropy of the resolution of the images in our dataset, we design 
 To limit the number of parameters in our model, we factorize all 3D convolutions into a 2D convolution followed by a 1d convolution in z. We also use weight sharing between some convolutions at the same height.
 
 
-\section{Sampling Procedure}
-\label{appendix:sampling}
-In this section, we describe our procedure for choosing a random point location in a segmentation. Uniformly random sampling is unsatisfactory since large objects such as dendritic trunks will be overrepresented. Instead, given a segmentation, we sample a location $\ell=(x,y,z)$ with probability inversely proportional to the fraction of a window of size $128\times 128 \times 16$ centred at $\ell$ which is occupied by the object containing pixel $\ell$.
-
-\section{Training Details}
+\section{Training details}
 The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error correction network trained for 1,700,000 iterations (approximately three weeks).
 
-\section{Per-Object VI Score}
+\section{Per-object VI score}
 \label{appendix:vi}
  Recall that the variation of information between two segmentations may be computed as
 \begin{align*}
@@ -403,7 +397,7 @@ Both quantities have units of bits. $VI_{split}(i)$ is zero iff ground truth seg
 %-------------------------------------------------------------------------------
 % Section B. Training Details
 %-------------------------------------------------------------------------------
-\section{Training Details}
+\section{Training details}
 The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error-correcting network trained for 1,700,000 iterations (approximately three weeks).
 
 
