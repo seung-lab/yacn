@@ -205,7 +205,7 @@ We trained one error detector with access to the raw image and one without. The 
 \begin{figure}
 \begin{center}
 	\includegraphics[width=0.65\linewidth]{pr.pdf}
-	\caption{Precision and recall for error detection, both with and without access to the raw image. In the test volume, there are $8266$ error free locations and $961$ locations with errors. In practice, we use threshold which guarantees >~95\% recall and >~85\% precision.}
+	\caption{Precision and recall for error detection, both with and without access to the raw image. In the test volume, there are $8248$ error free locations and $944$ locations with errors. In practice, we use threshold which guarantees >~95\% recall and >~85\% precision.}
 	\label{fig:error_detection_pr}
 \end{center}
 \end{figure}
@@ -248,7 +248,7 @@ In order to demonstrate the importance of error detection in error correction, r
 
 It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See Appendix \ref{appendix:vi} for a precise definition of $VI(i)$.
 
-We also computed the number of errors from the set in $\ref{sec:detection_results}$ that were fixed or introduced by our iterative refinement procedure. These numbers should be taken with a grain of salt since topologically insignificant changes could result in errors. However, $\ref{table:errors_fixed}$ shows that our iterative refinement procedure significantly reduced the number of remaining errors.
+The number of errors from the set in $\ref{sec:detection_results}$ that were fixed or introduced by our iterative refinement procedure is shown in \ref{table:errors_fixed}.  Our iterative refinement procedure fixed a significant fraction of the remaining errors.
 
 \begin{figure}
 \begin{center}
@@ -259,16 +259,16 @@ We also computed the number of errors from the set in $\ref{sec:detection_result
 \end{figure}
 
 \begin{table}[h]
-  \caption{Number of errors fixed and introduced relative to baseline}
-  \label{table:vi_scores}
+  \caption{Number of errors fixed and introduced relative to the baseline. These numbers should be taken with a grain of salt since topologically insignificant changes could result in errors.}
+  \label{table:errors_fixed}
   \centering
   \begin{tabular}{llll}
     \toprule
 	& \#Errors & \#Errors fixed rel. baseline & \#Errors introduced rel. baseline\\
     \midrule
-    Baseline & 961 & - & - \\
-    Without Advice & - & - & -\\
-	With Advice & - & - & -\\
+    Baseline & 944 & - & - \\
+    Without Advice & 474 & 547 & 77\\
+	With Advice & \textbf{305} & 707 & 68\\
     \bottomrule
   \end{tabular}
 \end{table}
