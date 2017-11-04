@@ -306,7 +306,6 @@ An error detection module has many potential uses beyond the ones presented here
 %While $\cite{floodfilling}$ performs inference densely, we selectively apply our error correction module near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for this advantage.
 
 %Our main novelty relative to their approach is the use of the advice of an error detector to bias flood-filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood-filling networks.
-\newpage
 \subsubsection*{Author contributions and acknowledgements}
 JZ conducted most of the experiments and evaluation. KL produced the baseline segmentation. IT (along with
 Will Silversmith) created much of the infrastructure necessary for visualization and running
