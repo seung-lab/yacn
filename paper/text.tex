@@ -56,17 +56,17 @@
 \begin{abstract}
 We define and study error detection and correction tasks that are
 useful for 3D reconstruction of neurons from electron microscopic
-imagery, and for instance segmentation more generally.  The error
-detection task takes as input the raw image and a binary mask
-representing a candidate object. The desired output is a map of split
-and merge errors in the object. The error correction task is
-formulated as object mask pruning. The input is the raw image
-and a candidate object mask. The task is to reduce the object mask to
-generate the true object. We train multiscale 3D convolutional
-networks to perform both tasks, and then show how the nets can be
-combined to achieve significant improvements in segmentation
-accuracy. Namely, the error-detecting net is used to create the
-object mask that is the input to the error-correcting net.
+imagery, and for image segmentation more generally. Both tasks take as
+input the raw image and a binary mask representing a candidate
+object. For the error detection task, the desired output is a map of
+split and merge errors in the object. For the error correction task,
+the desired output is the true object. We call this object mask
+pruning, because the candidate object mask is assumed to be a superset
+of the true object. We train multiscale 3D convolutional networks to
+perform both tasks. We find that the error-detecting net can achieve
+high accuracy. The accuracy of the error-correcting net is enhanced if
+its input object mask is ``advice'' (union of erroneous objects) from
+the error-detecting net.
 \end{abstract}
 
 \begin{figure}[t!]
@@ -130,7 +130,7 @@ independent works of~\cite{neuralfabric,mdnet,gridnet}, they all lack this
 convolutional nets as a better framework for object recognition and video
 segmentation, we claim that our model architecture is more general as evidenced
 in the diverse shape of boundary detection, error-detecting and error-correcting
-nets~(Figure~\ref{fig:architecture} and ~Figure~A1 in Appendix).
+nets~(Figure~\ref{fig:architecture} and Figure~A1 in the appendix).
 
 \section{Error detection}
 \subsection{Task specification: detecting split and merge errors}
@@ -279,7 +279,7 @@ We trained one error detector with access to the raw image and one without. The 
 	\begin{minipage}[t]{0.45\textwidth}
 \begin{center}
 	\includegraphics[width=1.0\linewidth]{difficult.jpg}
-	\caption{A difficult location with missing data in one section combined with a misalignment between sections. Our algorithm was able to correctly merge across the missing data.}
+	\caption{A difficult location with missing data in one section combined with a misalignment between sections. The error-correcting net was able to trace across the missing data.}
 	\label{fig:difficult}
 \end{center}
 \end{minipage}
@@ -303,14 +303,14 @@ We trained one error detector with access to the raw image and one without. The 
 
 In order to demonstrate the importance of error detection to error correction, we ran two experiments: one in which the binary mask input to the error corrector was simply the union of all segments in the window (``without advice''), and one in which the binary mask was the union of all segments with a detected error (``with advice''). In the ``without advice'' mode, the network is essentially asked to reconstruct the object overlapping the central voxel in one shot. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
 
-It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the cumulative distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See the appendix \ref{appendix:vi} for a precise definition of $VI(i)$.
+It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the cumulative distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See the appendix for a precise definition of $VI(i)$.
 
-The number of errors from the set in $\ref{sec:detection_results}$ that were fixed or introduced by our iterative refinement procedure is shown in \ref{table:errors_fixed}. These numbers should be taken with a grain of salt since topologically insignificant changes could result in errors. Regardless, it is clear that our iterative refinement procedure fixed a significant fraction of the remaining errors and that ``advice'' improves the error corrector.
+The number of errors from the set in Sec. $\ref{sec:detection_results}$ that were fixed or introduced by our iterative refinement procedure is shown in \ref{table:errors_fixed}. These numbers should be taken with a grain of salt since topologically insignificant changes could result in errors. Regardless, it is clear that our iterative refinement procedure fixed a significant fraction of the remaining errors and that ``advice'' improves the error corrector.
 
 \begin{figure}
 \begin{center}
 \includegraphics[width=0.65\linewidth]{per_object_vi.pdf}
-\caption{Per-object vi scores for the 940 reconstructed objects in our test volume. Almost 800 objects are completely error free in our segmentation. These objects are likely all axons; almost every dendrite has a couple of errors.}
+\caption{Per-object VI scores for the 940 reconstructed objects in our test volume. Almost 800 objects are completely error free in our segmentation. These objects are likely all axons; almost every dendrite is missing a few spines.}
 \label{fig:decomp_vi_scores}
 \end{center}
 \end{figure}
@@ -332,8 +332,8 @@ The number of errors from the set in $\ref{sec:detection_results}$ that were fix
 
 %Given that our baseline approach already produces state-of-the-art results on other datasets (see \cite{kisuk}), we expect that the method presented here is a substantial improvement upon the state of the art. However, we have not conducted experiments on publicly available datasets, and therefore we leave a careful comparison for future work.
 
-\subsection{Cost analysis}
-Table \ref{table:timing} shows the cost of the most expensive parts of our segmentation pipeline. The combined cost of error detection and correction is within an order of magnitude of the cost of neuronal boundary detection. The selectivity of our error detection network allowed us to run error correction at roughly 10\% of the possible locations in the image. Therefore, the cost of error detection is more than justified by the subsequent savings during the error correction phase. As the error rate of the initial segmentation decreases and the precision of the error detector increases, the number of locations requiring error correction will only fall further.
+\subsection{Computational cost analysis}
+Table \ref{table:timing} shows the computational cost of the most expensive parts of our segmentation pipeline. Boundary detection and error detection are run on the entire image, while error correction is run on roughly 10\% of the possible locations in the image.  Error correction is still the most costly step, but it would be $10\times$ more costly without restricting to the locations found by the error detection network. Therefore, the cost of error detection is more than justified by the subsequent savings during the error correction phase.  The number of locations requiring error correction will fall even further if the precision of the error detector increases or the error rate of the initial segmentation decreases.
 
 \begin{table}[h]
 	\caption{Computation time for a $2048\times 2048\times 256$ volume using a single TitanX Pascal GPU}
@@ -363,7 +363,7 @@ Table \ref{table:timing} shows the cost of the most expensive parts of our segme
 % \end{table}
 
 \section{Conclusion and future directions}
-We have developed a error detector for the neuronal segmentation problem and combined it with an error correction module. In particular, we have shown that our error detectors are able to exploit priors on neuron shape, having reasonable performance even without access to the raw image. We have made significant savings in computation by applying expensive error correction procedures only where predicted necessary by the error detector. Finally, we have demonstrated that the ``advice'' of error detection improves an error correcton module, improving segmentation performance upon our baseline.
+We have developed a error detector for the neuronal segmentation problem and combined it with an error correction module. In particular, we have shown that our error detectors are able to exploit priors on neuron shape, having reasonable performance even without access to the raw image. We have made significant savings in computation by applying expensive error correction procedures only where predicted necessary by the error detector. Finally, we have demonstrated that the ``advice'' of error detection improves an error correction module, improving segmentation performance upon our baseline.
 
 We expect that significant improvements in the accuracy of error detection could come from aggressive data augmentation. We can mutilate a ground truth segmentation in arbitrary (or even adversarial) ways to produce unlimited examples of errors.
 
@@ -378,7 +378,7 @@ An error detection module has many potential uses beyond the ones presented here
 %Our main novelty relative to their approach is the use of the advice of an error detector to bias flood-filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood-filling networks.
 \newpage
 \subsubsection*{Author contributions and acknowledgements}
-JZ conducted most of the experiments and evaluation. IT (along with Will
+JZ conceptualized the study and conducted most of the experiments and evaluation. IT (along with Will
 Silversmith) created much of the infrastructure necessary for visualization and
 running our algorithms at scale. KL produced the baseline segmentation. HSS
 helped with the writing.
