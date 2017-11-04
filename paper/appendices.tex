@@ -44,6 +44,7 @@ detection, which will be described in detail in the following section. (The same
 correction. See main text.)
 
 \subsection{\textsl{DeltaNet}: a densely multiscale convolution network}
+\label{sec:deltanet}
 
 \begin{figure}[!b]
 \centering
@@ -52,8 +53,14 @@ correction. See main text.)
 \caption{Architecture for the baseline neuronal boundary detection. Each node
 represents a layer and the number inside represents the number of feature maps.
 The layers closer to the top of the diagram have lower resolution than the
-layers near the bottom. The diagonal arrows represent strided convolutions,
-while the horizontal arrows represent skip connections.}
+layers near the bottom. We make savings in computation by minimizing the number
+of high resolution feature maps. The diagonal arrows represent strided
+convolutions, while the horizontal arrows represent skip connections. Associated
+with the diagonal arrows, black numbers indicate filter size and red numbers
+indicate strides in $x\times y\times z$. The target for our boundary detection
+net is a 3D \emph{affinity graph}~\cite{boundary_detection,kisuk,funke2017deep},
+thus outputting three channels each corresponding to $x$ (green), $y$ (red), and
+$z$ (blue) affinity map, respectively.}
 
 \label{fig:boundary_detector}
 \end{figure}
@@ -93,9 +100,21 @@ feedforward connections.
 \begin{figure}[!t]
 \centering
 \includegraphics[width=0.65\linewidth]{unfold.pdf}
-\caption{Feedback recurrent convolutional network.}
+
+\caption{Feedback recurrent convolutional network unrolled in time.
+See~\ref{sec:deltanet} for details}
+
 \label{fig:unfold}
 \end{figure}
+
+\subsubsection{Architectural details} Due to the anisotropy of the resolution of
+the images in our dataset, we design our nets so that the first convolutions are
+exclusively 2D while later convolutions are 3D. The field of view of a unit in
+the higher layers is therefore roughly cubic. To limit the number of parameters
+in our model, we factorize all 3D convolutions into a 2D convolution followed by
+a 1D convolution in $z$-dimension. We employed exponential linear units
+(ELUs,~\cite{elu}) for nonlinearity, except for the output layer with logistic
+activation functions.
 
 \subsection{Dataset}
 Our dataset is a sample of mouse primary visual cortex (V1) acquired using
