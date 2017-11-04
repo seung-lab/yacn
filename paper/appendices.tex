@@ -40,23 +40,21 @@ In this section, we describe our baseline segmentation pipeline, which is simila
 
 \subsection{Network architecture}
 
-Our proposed multiscale 3D convolutional network architecture for neuronal
-boundary detection is shown in Figure~\ref{fig:boundary_detector}. Our model is
-built upon U-Net with several interesting architectural augmentations.
+Our proposed densely multiscale 3D convolutional network architecture for
+neuronal boundary detection is shown in Figure~\ref{fig:boundary_detector}. Our
+model is built upon U-Net with several interesting architectural augmentations.
 
-First, JNet is much more dense than U-Net~\cite{unet} in the sense that its computation graph representation has many more internal nodes and edges,
-allowing more intensive computation compared to U-Net.
+% First, JNet is much more dense than U-Net~\cite{unet} in the sense that its computation graph representation has many more internal nodes and edges,
+% allowing more intensive computation compared to U-Net.
 
-Second, JNet can be viewed as a pyramidal stack of the basic computational
-modules as shown in Figure~\ref{fig:boundary_detector}. This diamond-shaped
-module can be interpreted as a residual module (\cite{resnet}, inset of
-Figure~\ref{fig:boundary_detector}) with two residual connections, where one is
-top-down and the other is bottom-up.
-
-Thus JNet is fully residual in the sense that every computational pathway
-involving horizontal information flow is supposed to pass through the residual
-modules. Moreover, each residual module refines its input representation by
-integrating both top-down and bottom-up information.
+JNet can be viewed as a pyramidal stack of the basic computational modules as
+shown in Figure~\ref{fig:boundary_detector}. This diamond-shaped module can be
+interpreted as a residual building block (see Figure 2 in~\cite{resnet}) with
+two residual connections, where one is top-down and the other is bottom-up. Thus
+JNet is fully residual in the sense that every computational pathway involving
+horizontal information flow is supposed to pass through the residual modules.
+Moreover, each residual module refines its input representation by integrating
+both top-down and bottom-up information.
 
 Lastly, as shown in Figure~\ref{fig:boundary_detector}, JNet's dense and fully
 residual architecture allows an incremental refinement of internal
