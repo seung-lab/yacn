@@ -91,7 +91,7 @@ In this paper, we support the intuition above by demonstrating high accuracy det
 
 A further novelty of our work is that our error-correcting net is trained to produce a vector field via metric learning, and the vector field is used to prune the object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}.
 
-Finally, our multiscale convolutional net architecture, while similar in spirit to UNet [cite], has some novelty.  [Kisuk describe here]
+Finally, our multiscale convolutional net architecture, while similar in spirit to U-Net~\cite{unet}, has some novelty.  [Kisuk describe here]
 
 
 \section{Error detection}
@@ -185,7 +185,7 @@ Here we describe our procedure for choosing a random point location in a segment
 \paragraph{Training of error detector}
 An initial segmentation containing errors was produced using our baseline neuronal boundary detector combined with mean affinity agglomeration at a threshold of 0.3. Point locations were sampled according to the sampling procedure specified in \ref{sec:sampling}. We augmented all of our data with rotations and reflections.
 
-\subsection{Training of error corrector}
+\paragraph{Training of error corrector}
 We sampled locations in the ground truth segmentation as in $\ref{sec:sampling}$. At each location $\ell = (x,y,z)$, we generated a training example as follows. Let $Obj_\ell$ be the ground truth object touching $\ell$. We selected a random subset of the objects in the window centred on $\ell$ including $Obj_\ell$. To be specific, we chose a number $p$ uniformly at random from $[0,1]$, and then selected each segment in the window with probability $p$ in addition $Obj_\ell$. The input is a binary mask representing the union of the selected objects along with the raw EM image, and the desired output is a binary mask representing only $Obj_\ell$. The dataset was augmented with rotations, reflections, simulated misalignments and missing sections~\cite{kisuk}.
 
 Note that this training procedure uses only the ground truth segmentation and is completely independent of the error detector and the baseline segmentataion. This convenient property is justified by the fact that if the error detector is perfect, the error corrector only ever receives as input unions of complete objects.
@@ -336,7 +336,7 @@ In this section we describe
 
 \subsection{Architecture}
 
-\begin{figure}[!t]
+\begin{figure}[!b]
 \centering
 \includegraphics[width=1.0\linewidth]{baseline.pdf}
 
