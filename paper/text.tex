@@ -101,16 +101,17 @@ Finally, our multiscale convolutional net architecture, while similar in spirit 
 	\begin{center}
 	\begin{subfigure}[t]{0.45\textwidth}
 		\includegraphics[width=1.0\linewidth]{detection_task.jpg}
-		\caption{Input to the error detector on the left and the corresponding error map on the right. In the merge error, the error map is roughly diamond shaped since a pixel in the error map is red iff a window centred on it touches both objects. The actual input and output are 3d volumes.}
+		\caption{Error detection task for split (top) and merge (bottom) errors. The desired output is an error map (red). A pixel in the error map is red if and only if a window centered on it contains a split or merge error.}
 		\label{fig:error_detection_cartoon}
 	\end{subfigure}
 \hfill
 	\begin{subfigure}[t]{0.45\textwidth}
 	\includegraphics[width=1.0\linewidth]{correction_task.jpg}
-	\caption{Desired input and output for the error correction network. The black dot marks the central pixel in each window. In the first case there is nothing to prune, while in the second case the object not overlapping the central pixel is erased.}
+	\caption{The object mask pruning task. The input mask is assumed to be a superset of a true object. The desired output (right) is the true object containing the central pixel (black dot). In the first case there is nothing to prune, while in the second case the object not overlapping the central pixel is erased.}
 	\label{fig:error_correction_cartoon}
 \end{subfigure}
-\end{center}
+        \end{center}
+        \caption{Error detection and correction tasks.  For both tasks, the inputs are a candidate object mask (blue) and the original image (grayscale). Note that diagrams are 2D for illustrative purposes, but in reality the inputs and outputs are 3D.}
 \end{figure}
 Given a single segment in a proposed segmentation presented as an object mask $Obj$, the error detection task is to produce a binary image called the \textit{error map}, denoted $Err_{p_x\times p_y \times p_z}(Obj)$. The definition of the error map depends on a choice of a window size $p_x \times p_y \times p_z$. A pixel $i$ in the error map is 0 if and only if the restriction of the input mask to a window centred at $i$ of size $p_x \times p_y \times p_z$ is pixel-wise equal to the restriction of some object in the ground truth. Observe that the error map is sensitive to both split and merge errors.
 
