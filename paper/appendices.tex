@@ -26,10 +26,14 @@
 \usepackage{subcaption}
 \usepackage[numbers]{natbib}
 \usepackage[toc,page]{appendix}
+\usepackage{rotating}
 \bibliographystyle{plainnat}
 \begin{document}
-\begin{appendices}
 
+\section*{Supplementary Information for ``An Error Detection and Correction Framework for Connectomics'' by Zung et al.}
+
+% \begin{appendices}
+\appendix
 %-------------------------------------------------------------------------------
 % Section A. Baseline Neuronal Boundary Detection
 %-------------------------------------------------------------------------------
@@ -44,6 +48,7 @@ detection, which will be described in detail in the following section. (The same
 correction. See main text.)
 
 \subsection{\textsl{DeltaNet}: a densely multiscale convolution network}
+\label{sec:deltanet}
 
 \begin{figure}[!b]
 \centering
@@ -53,7 +58,12 @@ correction. See main text.)
 represents a layer and the number inside represents the number of feature maps.
 The layers closer to the top of the diagram have lower resolution than the
 layers near the bottom. The diagonal arrows represent strided convolutions,
-while the horizontal arrows represent skip connections.}
+while the horizontal arrows represent skip connections. Associated with the
+diagonal arrows, black numbers indicate filter size and red numbers indicate
+strides in $x\times y\times z$. The target for our boundary detection net is a
+3D \emph{affinity graph}~\cite{boundary_detection,kisuk,funke2017deep}, thus
+outputting three channels of each corresponding to $x$ (green), $y$ (red), and
+$z$ (blue) affinity map, respectively.}
 
 \label{fig:boundary_detector}
 \end{figure}
@@ -93,9 +103,21 @@ feedforward connections.
 \begin{figure}[!t]
 \centering
 \includegraphics[width=0.65\linewidth]{unfold.pdf}
-\caption{Feedback recurrent convolutional network.}
+
+\caption{Feedback recurrent convolutional network unrolled in time.
+See~the text in Section~\ref{sec:deltanet} for further details.}
+
 \label{fig:unfold}
 \end{figure}
+
+\subsubsection{Architectural details} Due to the anisotropy of the resolution of
+the images in our dataset, we design our networks such that the first
+convolutions are exclusively 2D while later convolutions are 3D (see Figure~\ref{fig:boundary_detector}). The field of
+view of a unit in the higher layers is therefore roughly cubic. To limit the
+number of parameters in our model, we factorize all 3D convolutions into a 2D
+convolution followed by a 1D convolution in $z$-dimension. We employe
+exponential linear units (ELUs,~\cite{elu}) for nonlinearity, except for the
+output layer with logistic activation functions.
 
 \subsection{Dataset}
 Our dataset is a sample of mouse primary visual cortex (V1) acquired using
@@ -124,6 +146,13 @@ We perform \emph{overlap-blending} inference followed by watershed and mean affi
 %-------------------------------------------------------------------------------
 % Section B. Network Architecture
 %-------------------------------------------------------------------------------
+\label{appendix:architecture}
+\begin{sidewaysfigure}[!t]
+\centering
+\includegraphics[width=1.0\linewidth]{corrector.pdf}
+\caption{Error-correcting network architecture}
+\end{sidewaysfigure}
+
 \section{Per-object VI score}
 \label{appendix:vi}
  Recall that the variation of information between two segmentations may be computed as
@@ -147,15 +176,9 @@ Both quantities have units of bits. $VI_\text{split}(i)$ is zero iff ground trut
 % Section B. Training Details
 %-------------------------------------------------------------------------------
 \section{Training details}
-The neural networks were implemented in TensorFlow \cite{tensorflow} and trained
-using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam
-optimizer \cite{adam}, initialized with $\alpha=0.001$, $\beta_1=0.95$,
-$\beta_2=0.9995$, and $\epsilon=0.1$. Both networks were trained until the loss
-on a validation set plateaued. The error detection network trained for $700$K
-iterations (approximately one week), while the error-correcting network trained
-for $1.7$M iterations (approximately three weeks).
+The error-detecting and error-correcting networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer, initialized with $\alpha=0.001$, $\beta_1=0.95$, $\beta_2=0.9995$, and $\epsilon=0.1$ \cite{adam}.   Both nets were trained until the loss on a validation set plateaued. The error-detecting net was trained for $700$K iterations (approximately one week), while the error-correcting net was trained for $1.7$M iterations (approximately three weeks).
 
-\end{appendices}
+% \end{appendices}
 
 \bibliography{bib}
 
