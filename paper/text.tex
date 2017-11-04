@@ -26,6 +26,9 @@
 \usepackage{subcaption}
 \usepackage[numbers]{natbib}
 \usepackage[toc,page]{appendix}
+\usepackage{xr}
+\externaldocument{appendices}
+
 \bibliographystyle{plainnat}
 
 \title{An Error Detection and Correction Framework for Connectomics}
@@ -33,6 +36,10 @@
 	Jonathan Zung\\
 	Princeton University\\
 	{\tt jzung@princeton.edu}
+	\And
+	Kisuk Lee\\
+	Princeton University\\
+	{\tt kisuklee@princeton.edu}
 	\And
 	Ignacio Tartavull\\
 	Princeton University\\
@@ -89,10 +96,7 @@ In this paper, we support the intuition above by demonstrating high accuracy det
 
 %Furthermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
 
-A further novelty of our work is that our error-correcting net is trained to produce a vector field via metric learning, and the vector field is used to prune the object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}.
-
-Finally, our multiscale convolutional net architecture, while similar in spirit to U-Net~\cite{unet}, has some novelty.  [Kisuk describe here]
-
+Some of the design choices we made in our neural networks may be of interest to other researchers. Our error-correcting net is trained to produce a vector field via metric learning instead of directly producing an object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}. Our multiscale convolutional net architecture, while similar in spirit to UNet~\cite{unet}, has some novelty.  [Kisuk describe here, something about recurrence, weight sharing, etc.]
 
 \section{Error detection}
 \subsection{Task specification}
@@ -101,16 +105,17 @@ Finally, our multiscale convolutional net architecture, while similar in spirit 
 	\begin{center}
 	\begin{subfigure}[t]{0.45\textwidth}
 		\includegraphics[width=1.0\linewidth]{detection_task.jpg}
-		\caption{Input to the error detector on the left and the corresponding error map on the right. In the merge error, the error map is roughly diamond shaped since a pixel in the error map is red iff a window centred on it touches both objects. The actual input and output are 3d volumes.}
+		\caption{Error detection task for split (top) and merge (bottom) errors. The desired output is an error map (red). A pixel in the error map is red if and only if a window centered on it contains a split or merge error.}
 		\label{fig:error_detection_cartoon}
 	\end{subfigure}
 \hfill
 	\begin{subfigure}[t]{0.45\textwidth}
 	\includegraphics[width=1.0\linewidth]{correction_task.jpg}
-	\caption{Desired input and output for the error correction network. The black dot marks the central pixel in each window. In the first case there is nothing to prune, while in the second case the object not overlapping the central pixel is erased.}
+	\caption{The object mask pruning task. The input mask is assumed to be a superset of a true object. The desired output (right) is the true object containing the central pixel (black dot). In the first case there is nothing to prune, while in the second case the object not overlapping the central pixel is erased.}
 	\label{fig:error_correction_cartoon}
 \end{subfigure}
-\end{center}
+        \end{center}
+        \caption{Error detection and correction tasks.  For both tasks, the inputs are a candidate object mask (blue) and the original image (grayscale). Note that diagrams are 2D for illustrative purposes, but in reality the inputs and outputs are 3D.}
 \end{figure}
 Given a single segment in a proposed segmentation presented as an object mask $Obj$, the error detection task is to produce a binary image called the \textit{error map}, denoted $Err_{p_x\times p_y \times p_z}(Obj)$. The definition of the error map depends on a choice of a window size $p_x \times p_y \times p_z$. A pixel $i$ in the error map is 0 if and only if the restriction of the input mask to a window centred at $i$ of size $p_x \times p_y \times p_z$ is pixel-wise equal to the restriction of some object in the ground truth. Observe that the error map is sensitive to both split and merge errors.
 
@@ -147,7 +152,7 @@ When an over-segmentation is available, we replace $v(P_x/2,P_y/2,P_z/2)$ with t
 	\caption{An example of a mistake in the initial segmentation. The dendrite is missing a spine. The red overlay on the left shows the combined error map (defined in Section~\ref{sec:detection_spec}); the stump in the centre of the image was clearly marked as an error.}
 
 	\includegraphics[width=0.65\linewidth]{neighbours.jpg}
-	\caption{The right shows all objects which contained  a detected error in the vicinity. This is the binary mask which is provided as input to the error correction network. For clarity, these objects were clipped to lie within the white box representing the field of view of our error correction network. The output of the error correction network is overlaid in blue on the left.}
+	\caption{The right shows all objects which contained  a detected error in the vicinity. For clarity, each supervoxel was drawn with a different colour. The union of these objects is the binary mask which is provided as input to the error correction network. For clarity, these objects were clipped to lie within the white box representing the field of view of our error correction network. The output of the error correction network is overlaid in blue on the left.}
 
 	\includegraphics[width=0.65\linewidth]{final.jpg}
 	\caption{The supervoxels assembled in accordance with the output of the error correction network.}
@@ -238,7 +243,7 @@ We trained one error detector with access to the raw image and one without. The 
   \end{tabular}
 \end{table}
 
-In order to demonstrate the importance of error detection in error correction, ran two experiments: one in which the binary mask input to the error corrector was simply the union of all segments in the window (``without advice''), and one in which the binary mask was the union of all segments with a detected error (``with advice''). In the ``without advice'' mode, the network is essentially asked to reconstruct the object overlapping the central pixel in one shot. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
+In order to demonstrate the importance of error detection to error correction, we ran two experiments: one in which the binary mask input to the error corrector was simply the union of all segments in the window (``without advice''), and one in which the binary mask was the union of all segments with a detected error (``with advice''). In the ``without advice'' mode, the network is essentially asked to reconstruct the object overlapping the central pixel in one shot. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
 
 It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See Appendix \ref{appendix:vi} for a precise definition of $VI(i)$.
 
@@ -303,7 +308,7 @@ An error detection module has many potential uses beyond the ones presented here
 %Our main novelty relative to their approach is the use of the advice of an error detector to bias flood-filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood-filling networks.
 
 \subsubsection*{Author contributions and acknowledgements}
-JZ conducted most of the experiments and evaluation. IT (along with
+JZ conducted most of the experiments and evaluation. KL produced the baseline segmentation. IT (along with
 Will Silversmith) created much of the infrastructure necessary for visualization and running
 our algorithms at scale. HSS secured funding and played an advisory role.
 
@@ -323,89 +328,4 @@ or the U.S. Government.
 
 \bibliography{bib}
 
-\newpage
-\begin{appendices}
-
-%-------------------------------------------------------------------------------
-% Section A. Baseline Neuronal Boundary Detection
-%-------------------------------------------------------------------------------
-\section{Baseline Neuronal Boundary Detection}
-\label{appendix:baseline}
-
-In this section we describe
-
-\subsection{Architecture}
-
-\begin{figure}[!b]
-\centering
-\includegraphics[width=1.0\linewidth]{baseline.pdf}
-
-\caption{Architecture for the baseline neuronal boundary detection. Each node represents a layer and the number inside represents the number of feature maps. The layers closer to the top of the diagram have lower resolution than the layers near the bottom. The diagonal arrows represent strided convolutions, while the horizontal arrows represent skip connections.}
-\label{fig:architecture}
-\end{figure}
-
-\subsection{Dataset}
-
-\subsection{Training}
-
-\subsection{Postprocessing}
-
-\subsection{Inference}
-
-
-%-------------------------------------------------------------------------------
-% Section B. Network Architecture
-%-------------------------------------------------------------------------------
-\section{Network Architectures}
-\label{appendix:architecture}
-
-\begin{figure}
-\centering
-\includegraphics[width=1.0\linewidth]{detector.pdf}
-\centering
-\includegraphics[width=1.0\linewidth]{corrector2.pdf}
-
-\caption{Architectures for the error detection and error correction modules respectively. Each node represents a layer and the number inside represents the number of feature maps. The layers closer to the top of the diagram have lower resolution than the layers near the bottom. We make savings in computation by minimizing the number of high resolution feature maps. The diagonal arrows represent strided convolutions, while the horizontal arrows represent skip connections.}
-\label{fig:architecture}
-\end{figure}
-
-Due to the anisotropy of the resolution of the images in our dataset, we design our networks so that the first convolutions are exclusively 2D while later convolutions are 3D. The field of view of a unit in the higher layers is therefore roughly cubic.
-
-To limit the number of parameters in our model, we factorize all 3D convolutions into a 2D convolution followed by a 1d convolution in z. We also use weight sharing between some convolutions at the same height.
-
-
-\section{Sampling Procedure}
-\label{appendix:sampling}
-In this section, we describe our procedure for choosing a random point location in a segmentation. Uniformly random sampling is unsatisfactory since large objects such as dendritic trunks will be overrepresented. Instead, given a segmentation, we sample a location $\ell=(x,y,z)$ with probability inversely proportional to the fraction of a window of size $128\times 128 \times 16$ centred at $\ell$ which is occupied by the object containing pixel $\ell$.
-
-\section{Training Details}
-The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error correction network trained for 1,700,000 iterations (approximately three weeks).
-
-\section{Per-Object VI Score}
-\label{appendix:vi}
- Recall that the variation of information between two segmentations may be computed as
-\begin{align*}
-	VI_{split}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/p_i)\\
-	VI_{merge}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/q_j)\\
-	p_i&=\sum_j r_{ij}\\
-	q_j&=\sum_i r_{ij}
-\end{align*}
-where $r_{ij}$ is the number of pixels in common between the $i^{th}$ segment of the ground truth segmentation and the $j^{th}$ segment of the proposed segmentation \cite{vi}.
-
-We define the split and merge scores for ground truth segment $i$ as
-\begin{align*}
-	VI_{split}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/p_i)\\
-	VI_{merge}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/q_j)
-\end{align*}
-Both quantities have units of bits. $VI_{split}(i)$ is zero iff ground truth segment $i$ is contained within a segment in the proposed segmentation, while $VI_{merge}(i)$ is zero iff ground truth segment $i$ is the union of one or more segments in the proposed segmentation. The total score $VI_{split}$ or $VI_{merge}$ is a weighted sum of the per-object scores $VI_{split}(i)$, $VI_{merge}(i)$ respectively.
-
-
-%-------------------------------------------------------------------------------
-% Section B. Training Details
-%-------------------------------------------------------------------------------
-\section{Training Details}
-The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error-correcting network trained for 1,700,000 iterations (approximately three weeks).
-
-
-\end{appendices}
 \end{document}
