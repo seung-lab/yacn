@@ -296,33 +296,17 @@ An error detection module has many potential uses beyond the ones presented here
 
 %Our approach may also be compared with models for visual attention in the literature (for example, \cite{recurrent_attention}). Recurrent neural networks are able to learn in an end-to-end way how to find which parts of an image are relevant to the given task. In contrast, we have a fixed policy for which objects to attend to: we attend to those objects which likely contain errors. One of our central findings is that this policy is highly selective and improves segmentation performance.
 
-<<<<<<< HEAD
-
-
-%Furthermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
-
-%Our approach is to decompose the problem of refining a given segmentation into two easier problems: error detection and error correction. As a wise man once said, recognizing your faults is the first step towards fixing them. We hypothesize that thanks to the distinctive shapes of neurons, recognizing an error is much easier than finding the correct answer.
-
-%Conversely, an error detection module makes error correction much easier. Once we remove from consideration all objects which do not contain an error, the visual crowding problem is alleviated. Choosing the correct extension of a neurite is easy when there are only a few choices available. Furthermore, we can afford to apply a relatively expensive error correction procedure as it does not need to be applied everywhere.
-
-%In this paper, we will demonstrate the feasibility of high quality error detection. We will also demonstrate the effectiveness of error detection in directing the attention of an error correction module. We expect our error detector will be independently useful for directing human proofreading effort.
-
 %We also argue that the error detection task is better posed than the supervoxel agglomeration task. Given two objects which already contain errors, it is often unclear whether the segmentation improves after they have been merged. In \cite{lash}, the authors resolve this ambiguity by training to predict the change in Rand score from a proposed merge.
 
 %While $\cite{floodfilling}$ performs inference densely, we selectively apply our error correction module near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for this advantage.
 
 %Our main novelty relative to their approach is the use of the advice of an error detector to bias flood-filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood-filling networks.
 
-\section{Author Contributions}
-=======
 \subsubsection*{Author contributions and acknowledgements}
->>>>>>> cd513ace246e901bcef6483bbd0ac5c5640a4d2d
 JZ conducted most of the experiments and evaluation. IT (along with
 Will Silversmith) created much of the infrastructure necessary for visualization and running
 our algorithms at scale. HSS secured funding and played an advisory role.
 
-<<<<<<< HEAD
-\section{Acknowledgements}
 We are grateful to Clay Reid, Nuno da Costa, Agnes Bodor, Adam Bleckert, Dan Bumbarger, Derrick Britain, JoAnn Buchannan, and Marc Takeno for acquiring the TEM dataset at the Allen Institute for Brain Science.
 The ground truth annotation was created by Ben Silverman, Merlin Moore, Sarah Morejohn, Selden Koolman, Ryan Willie, Kyle Willie, and Harrison MacGowan.
 We thank Nico Kemnitz for proofreading a draft of this paper. We thank
@@ -330,18 +314,6 @@ Jeremy Maitin-Shepard at Google and the other contributors to the neuroglancer p
 
 We acknowledge NVIDIA Corporation for providing us with early access to Titan X
 Pascal GPU used in this research, and Amazon for assistance through an AWS Research Grant. This research was supported by the Intelligence Advanced
-=======
-The dataset used for this project was acquired at the Allen Institute for Brain Science.
-The ground truth for this project was created by Ben Silverman, Merlin Moore, Sarah Morejohn,
-Selden Koolman, Ryan Willie, Kyle Willie, and Harrison Macgowan. Kisuk Lee trained the boundary
-detectors used to generate our baseline segmentation. We thank Kisuk Lee for several
-helpful conversations and Nico Kemnitz for proofreading a draft of this paper. We thank
-Jeremy Maitin-Shepard and the other contributors to the neuroglancer project for creating an
-invaluable visualization tool.
-
-We thank Barton Fiske of NVIDIA Corporation for providing us with early access to Titan X
-Pascal GPU used in this research. This research was supported by the Intelligence Advanced
->>>>>>> cd513ace246e901bcef6483bbd0ac5c5640a4d2d
 Research Projects Activity (IARPA) via Department of Interior/ Interior Business Center (DoI/IBC)
 contract number D16PC0005. The U.S. Government is authorized to reproduce and distribute reprints
 for Governmental purposes notwithstanding any copyright annotation thereon. Disclaimer: The views
