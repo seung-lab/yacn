@@ -86,7 +86,7 @@ To limit the number of parameters in our model, we factorize all 3D convolutions
 	p_i&=\sum_j r_{ij}\\
 	q_j&=\sum_i r_{ij}
 \end{align*}
-where $r_{ij}$ is the number of pixels in common between the $i^{th}$ segment of the ground truth segmentation and the $j^{th}$ segment of the proposed segmentation \cite{vi}.
+where $r_{ij}$ is the number of voxels in common between the $i^{th}$ segment of the ground truth segmentation and the $j^{th}$ segment of the proposed segmentation \cite{vi}.
 
 We define the split and merge scores for ground truth segment $i$ as
 \begin{align*}
@@ -104,4 +104,5 @@ The neural networks were implemented in TensorFlow \cite{tensorflow} and trained
 
 
 \end{appendices}
+\bibliography{bib}
 \end{document}
