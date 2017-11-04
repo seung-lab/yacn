@@ -69,6 +69,23 @@ accuracy. Namely, the error-detecting net is used to create the
 object mask that is the input to the error-correcting net.
 \end{abstract}
 
+\begin{figure}[t!]
+	\begin{center}
+	\begin{subfigure}[t]{0.45\textwidth}
+		\includegraphics[width=1.0\linewidth]{detection_task.jpg}
+		\caption{Error detection task for split (top) and merge (bottom) errors. The desired output is an error map (red). A voxel in the error map is red if and only if a window centered on it contains a split or merge error. We also consider a variant of the task in which the object mask is the sole input; the grayscale image is not used.}
+		\label{fig:error_detection_cartoon}
+	\end{subfigure}
+\hfill
+	\begin{subfigure}[t]{0.45\textwidth}
+	\includegraphics[width=1.0\linewidth]{correction_task.jpg}
+	\caption{The object mask pruning task. The input mask is assumed to be a superset of a true object. The desired output (right) is the true object containing the central voxel (black dot). In the first case there is nothing to prune, while in the second case the object not overlapping the central voxel is erased.}
+	\label{fig:error_correction_cartoon}
+\end{subfigure}
+        \end{center}
+        \caption{Error detection and correction tasks.  For both tasks, the inputs are a candidate object mask (blue) and the original image (grayscale). Note that diagrams are 2D for illustrative purposes, but in reality the inputs and outputs are 3D.}
+\end{figure}
+
 \section{Introduction}
 While neuronal circuits can be reconstructed from volumetric electron
 microscopic imagery, the process has historically
@@ -101,22 +118,6 @@ Some of the design choices we made in our neural networks may be of interest to 
 \section{Error detection}
 \subsection{Task specification: detecting split and merge errors}
 \label{sec:detection_spec}
-\begin{figure}[t!]
-	\begin{center}
-	\begin{subfigure}[t]{0.45\textwidth}
-		\includegraphics[width=1.0\linewidth]{detection_task.jpg}
-		\caption{Error detection task for split (top) and merge (bottom) errors. The desired output is an error map (red). A voxel in the error map is red if and only if a window centered on it contains a split or merge error. We also consider a variant of the task in which the object mask is the sole input; the grayscale image is not used.}
-		\label{fig:error_detection_cartoon}
-	\end{subfigure}
-\hfill
-	\begin{subfigure}[t]{0.45\textwidth}
-	\includegraphics[width=1.0\linewidth]{correction_task.jpg}
-	\caption{The object mask pruning task. The input mask is assumed to be a superset of a true object. The desired output (right) is the true object containing the central voxel (black dot). In the first case there is nothing to prune, while in the second case the object not overlapping the central voxel is erased.}
-	\label{fig:error_correction_cartoon}
-\end{subfigure}
-        \end{center}
-        \caption{Error detection and correction tasks.  For both tasks, the inputs are a candidate object mask (blue) and the original image (grayscale). Note that diagrams are 2D for illustrative purposes, but in reality the inputs and outputs are 3D.}
-\end{figure}
 Given a single segment in a proposed segmentation presented as an object mask $Obj$, the error detection task is to produce a binary image called the \textit{error map}, denoted $Err_{p_x\times p_y \times p_z}(Obj)$. The definition of the error map depends on a choice of a window size $p_x \times p_y \times p_z$. A voxel $i$ in the error map is 0 if and only if the restriction of the input mask to a window centred at $i$ of size $p_x \times p_y \times p_z$ is voxel-wise equal to the restriction of some object in the ground truth. Observe that the error map is sensitive to both split and merge errors.
 
 A smaller window size allows us to localize errors more precisely. On the other hand, if the window radius is less than the width of a typical boundary between objects, it is possible that two objects participating in a merge error never appear in the same window. These merge errors would not be classified as an error in any window.
