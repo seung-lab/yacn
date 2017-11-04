@@ -218,7 +218,7 @@ An initial segmentation containing errors was produced using our baseline neuron
 \paragraph{Training of error corrector}
 We sampled locations in the ground truth segmentation as in $\ref{sec:sampling}$. At each location $\ell = (x,y,z)$, we generated a training example as follows. Let $Obj_\ell$ be the ground truth object touching $\ell$. We selected a random subset of the objects in the window centred on $\ell$ including $Obj_\ell$. To be specific, we chose a number $p$ uniformly at random from $[0,1]$, and then selected each segment in the window with probability $p$ in addition $Obj_\ell$. The input is a binary mask representing the union of the selected objects along with the raw EM image, and the desired output is a binary mask representing only $Obj_\ell$. The dataset was augmented with rotations, reflections, simulated misalignments and missing sections~\cite{kisuk}. We used the cross-entropy loss.
 
-Note that this training procedure uses only the ground truth segmentation and is completely independent of the error detector and the baseline segmentataion. This convenient property is justified by the fact that if the error detector is perfect, the error corrector only ever receives as input unions of complete objects.
+Note that this training procedure uses only the ground truth segmentation and is completely independent of the error detector and the baseline segmentation. This convenient property is justified by the fact that if the error detector is perfect, the error corrector only ever receives as input unions of complete objects.
 
 \subsection{Error detection results}
 \label{sec:detection_results}
@@ -335,7 +335,7 @@ An error detection module has many potential uses beyond the ones presented here
 JZ conducted most of the experiments and evaluation. IT (along with Will
 Silversmith) created much of the infrastructure necessary for visualization and
 running our algorithms at scale. KL produced the baseline segmentation. HSS
-secured funding and played an advisory role.
+helped with the writing.
 
 We are grateful to Clay Reid, Nuno da Costa, Agnes Bodor, Adam Bleckert, Dan Bumbarger, Derrick Britain, JoAnn Buchannan, and Marc Takeno for acquiring the TEM dataset at the Allen Institute for Brain Science.
 The ground truth annotation was created by Ben Silverman, Merlin Moore, Sarah Morejohn, Selden Koolman, Ryan Willie, Kyle Willie, and Harrison MacGowan.
