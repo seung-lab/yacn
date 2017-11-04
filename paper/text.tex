@@ -42,7 +42,7 @@
 	{\tt tartavull@princeton.edu}
 	\And
 	Kisuk Lee\\
-	MIT\\
+	Princeton University and MIT\\
 	{\tt kisuklee@mit.edu}
 	\And
     H. Sebastian Seung\\
@@ -122,9 +122,16 @@ new in computer vision
 \cite{harley2015metric,fathi2017metric,brabandere2017metric}. Our multiscale
 convolutional net architecture, while similar in spirit to the populur
 U-Net~\cite{unet}, has some novelty. With proper weight sharing, our model can
-be viewed as a feedback recurrent convolutional net unrolled in time (see
-the appendix for details). Although our model architecture is closely related to the
-independent works of~\cite{neuralfabric,mdnet,gridnet}, they all lack this \emph{feedback recurrent} convolutional net interpretation.
+be viewed as a feedback recurrent convolutional net unrolled in time (see the
+appendix for details). Although our model architecture is closely related to the
+independent works of~\cite{neuralfabric,mdnet,gridnet}, they all lack this
+\emph{feedback recurrent} convolutional net interpretation. Recently
+\cite{pavel2017recurrent} and \cite{spoerer2017recurrent} proposed feedback
+convolutional nets as a better framework for object recognition and video
+segmentation respectively, we claim that our model architecture is more general
+and flexible as evidenced by the diverse shape of boundary detection,
+error-detecting and error-correcting nets~(Figure~\ref{fig:architecture} and
+supplementary Figure~1).
 
 \section{Error detection}
 \subsection{Task specification: detecting split and merge errors}
@@ -387,7 +394,7 @@ We thank Nico Kemnitz for proofreading a draft of this paper. We thank
 Jeremy Maitin-Shepard at Google and the other contributors to the neuroglancer project for creating an invaluable visualization tool.
 
 We acknowledge NVIDIA Corporation for providing us with early access to Titan X
-Pascal GPU used in this research, and Amazon for assistance through an AWS Research Grant. This research was supported by the Intelligence Advanced
+Pascal GPU used in this research, and Amazon for assistance through an AWS Research Grant. This research was supported by the Mathers Foundation and the Intelligence Advanced
 Research Projects Activity (IARPA) via Department of Interior/ Interior Business Center (DoI/IBC)
 contract number D16PC0005. The U.S. Government is authorized to reproduce and distribute reprints
 for Governmental purposes notwithstanding any copyright annotation thereon. Disclaimer: The views
