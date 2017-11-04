@@ -102,7 +102,7 @@ We find it especially interesting and natural to combine the error-detecting and
 \begin{figure}
 \begin{center}
 	\includegraphics[width=0.65\linewidth]{detection_task.jpg}
-	\caption{Input to the error detector on the left and the corresponding error map on the right.}
+	\caption{Input to the error detector on the left and the corresponding \textit{error map} on the right.}
 	\label{fig:error_detection_cartoon}
 \end{center}
 \end{figure}
@@ -159,7 +159,7 @@ When an over-segmentation is available, we replace $v(P_x/2,P_y/2,P_z/2)$ with t
 \end{figure}
 In this section, we describe how our error detector and error corrector are combined at test time. We begin with a proposed segmentation whose remaining errors are assumed to be sparsely distributed. During the error correction phase, we iteratively update a segmentation represented as a graph $G$ whose vertices are segments in a strict over-segmentation (henceforth called supervoxels) and whose connected components are segments in the proposed segmentation. We also maintain the combined error map associated with the current segmentation. We binarize the error map by thresholding at 0.25.
 
-Now we iteratively choose a location $l=(x,y,z)$ which has value 1 in the combined error map. In a $P_x \times P_y \times P_z$ window centred on $l$, we prepare an input for the error corrector by taking the union of all segments containing at least one white pixel in the error map. We apply the error correction network to produce a binary image $M$ representing the object containing the central pixel. For each supervoxel $S$, let $M(S)$ denote the average value of $M$ inside $S$. If $M(S) \not \in [0.1,0.9]$ for all $S$ in the relevant window, add to $G$ a clique on $\{S | M(S) > 0.9\}$ and delete from $G$ all edges between $\{S | M(S) < 0.9\}$ and $\{S | M(S) > 0.9\}$. The effect of this is to update $G$ to locally agree with $M$. Finally, we update the combined error map by applying the error detector at all locations where its decision could have changed.
+Now we iteratively choose a location $l=(x,y,z)$ which has value 1 in the combined error map. In a $P_x \times P_y \times P_z$ window centred on $l$, we prepare an input for the error corrector by taking the union of all segments containing at least one white pixel in the error map. We apply the error corrector to produce a binary image $M$ representing the object containing the central pixel. For each supervoxel $S$, let $M(S)$ denote the average value of $M$ inside $S$. If $M(S) \not \in [0.1,0.9]$ for all $S$ in the relevant window, add to $G$ a clique on $\{S | M(S) > 0.9\}$ and delete from $G$ all edges between $\{S | M(S) < 0.9\}$ and $\{S | M(S) > 0.9\}$. The effect of this is to update $G$ to locally agree with $M$. Finally, we update the combined error map by applying the error detector at all locations where its decision could have changed.
 
 We would like to iterate until every location is zero in the error map or has been covered by a window at least twice by the error corrector. This stopping criterion guarantees that the algorithm terminates.
 
@@ -179,7 +179,7 @@ A team of tracers produced multiple volumes of gold standard dense reconstructio
 Producing the gold standard segmentation required a total of $\sim 560$ tracer hours, while producing the bootstrapped ground truth required $\sim 670$ tracer hours.
 
 \subsection{Baseline segmentation}
-Our baseline segmentation was produced using a pipeline of multiscale convolutional networks for neuronal boundary detection, watershed, and mean affinity agglomeration~\cite{kisuk}. We describe the pipeline in detail in Appendix~\ref{appendix:baseline}. The segmentation performance values reported for the baseline are taken at a mean affinity agglomeration threshold of 0.23, which minimizes the total variation of information error metric on the test volumes.
+Our baseline segmentation was produced using a pipeline of multiscale convolutional networks for neuronal boundary detection, watershed, and mean affinity agglomeration~\cite{kisuk}. We describe the pipeline in detail in Appendix~\ref{appendix:baseline}. The segmentation performance values reported for the baseline are taken at a mean affinity agglomeration threshold of 0.23, which minimizes the variation of information error metric~\cite{meila2007,vi} on the test volumes.
 
 \subsection{Trainging procedures}
 \paragraph{Sampling procedure}
@@ -238,23 +238,23 @@ We trained one error detector with access to the original image and one without.
     \bottomrule
   \end{tabular}
 \end{table}
-In order to demonstrate the importance of error detection in error correction, we applied our error correction algorithm both with and without the auxiliary ``advice'' input channel having error-free objects zeroed out. The error correction network was simultaneously trained with and without advice, so this comparison is fair. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
+In order to demonstrate the importance of error detection in error correction, we applied our error correction algorithm both with and without the auxiliary ``advice'' input channel having error-free objects zeroed out. The error-correcting network was simultaneously trained with and without advice, so this comparison is fair. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
 
-It is sometimes difficult to assess the significance of an improvement in variation of information or Rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Recall that the variation of information between two segmentations may be computed as
+It is sometimes difficult to assess the significance of an improvement in the variation of information or the Rand score~\cite{rand1971,ignacio2015} since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Recall that the variation of information between two segmentations may be computed as
 \begin{align*}
-	VI_\text{split}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/p_i),\\
-	VI_\text{merge}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/q_j),\\
+	VI_\text{split}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log\frac{r_{ij}}{p_i},\\
+	VI_\text{merge}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log\frac{r_{ij}}{q_j},\\
 	p_i&=\sum_j r_{ij},\\
 	q_j&=\sum_i r_{ij},
 \end{align*}
-where $r_{ij}$ is the number of pixels in common between the $i^{th}$ segment of the ground truth segmentation and the $j^{th}$ segment of the proposed segmentation \cite{vi}.
+where $r_{ij}$ is the number of pixels in common between the $i^\text{th}$ segment of the ground truth segmentation and the $j^\text{th}$ segment of the proposed segmentation \cite{vi}.
 
 We define the split and merge scores for ground truth segment $i$ as
 \begin{align*}
-	VI_\text{split}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/p_i)\\
-	VI_\text{merge}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/q_j)
+	VI_\text{split}(i) &= -\sum_j \frac{r_{ij}}{p_i} \log\frac{r_{ij}}{p_i},\\
+	VI_\text{merge}(i) &= -\sum_j \frac{r_{ij}}{p_i} \log\frac{r_{ij}}{q_j}.
 \end{align*}
-Both quantities have units of bits. $VI_\text{split}(i)$ is zero if and only if ground truth segment $i$ is contained within a segment in the proposed segmentation, while $VI_\text{merge}(i)$ is zero if and only if ground truth segment $i$ is the union of one or more segments in the proposed segmentation. The total score $VI_\text{split, merge}$ is a weighted sum of the per-object scores $VI_\text{split,merge}(i)$. Figure \ref{fig:decomp_vi_scores} summarizes the distribution of the values of $VI(i)=VI_\text{merge}(i)+VI_\text{split}(i)$ for all segments $i$ in the ground truth.
+Both quantities have units of bits. $VI_\text{split}(i)$ is zero if and only if ground truth segment $i$ is contained within a segment in the proposed segmentation, while $VI_\text{merge}(i)$ is zero if and only if ground truth segment $i$ is the union of one or more segments in the proposed segmentation. The total score $VI_\text{split}$ and $VI_\text{merge}$ are a weighted sum of the per-object scores $VI_\text{split}(i)$ and $VI_\text{merge}(i)$. Figure \ref{fig:decomp_vi_scores} summarizes the distribution of the values of $VI(i)=VI_\text{merge}(i)+VI_\text{split}(i)$ for all segments $i$ in the ground truth.
 \begin{figure}
 \begin{center}
 \includegraphics[width=0.65\linewidth]{per_object_vi.pdf}
@@ -374,7 +374,7 @@ To limit the number of parameters in our model, we factorize all 3D convolutions
 % Section B. Training Details
 %-------------------------------------------------------------------------------
 \section{Training Details}
-The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error correction network trained for 1,700,000 iterations (approximately three weeks).
+The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error-correcting network trained for 1,700,000 iterations (approximately three weeks).
 
 
 \end{appendices}
