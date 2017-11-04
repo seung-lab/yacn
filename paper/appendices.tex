@@ -26,6 +26,7 @@
 \usepackage{subcaption}
 \usepackage[numbers]{natbib}
 \usepackage[toc,page]{appendix}
+\usepackage{rotating}
 \bibliographystyle{plainnat}
 \begin{document}
 \begin{appendices}
@@ -98,10 +99,12 @@ We perform \emph{overlap-blending} inference followed by watershed and mean affi
 %-------------------------------------------------------------------------------
 % Section B. Network Architecture
 %-------------------------------------------------------------------------------
-\section{Network architectures}
 \label{appendix:architecture}
-
-
+\begin{sidewaysfigure}[!t]
+\centering
+\includegraphics[width=1.0\linewidth]{corrector.pdf}
+\caption{Error-correcting network architecture}
+\end{sidewaysfigure}
 
 \section{Per-object VI score}
 \label{appendix:vi}
@@ -126,11 +129,7 @@ Both quantities have units of bits. $VI_\text{split}(i)$ is zero iff ground trut
 % Section B. Training Details
 %-------------------------------------------------------------------------------
 \section{Training details}
-<<<<<<< HEAD
-The error-detecting and error-correcting networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both nets were trained until the loss on a validation set plateaued. The error-detecting net was trained for $700$K iterations (approximately one week), while the error-correcting net was trained for $1.7$M iterations (approximately three weeks).
-=======
-The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}, initialized with $\alpha=0.001$, $\beta_1=0.95$, $\beta_2=0.9995$, and $\epsilon=0.1$. Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error-correcting network trained for 1,700,000 iterations (approximately three weeks).
->>>>>>> 9822e39a1b15218101657bcd23adc540923e5ff8
+The error-detecting and error-correcting networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer, initialized with $\alpha=0.001$, $\beta_1=0.95$, $\beta_2=0.9995$, and $\epsilon=0.1$ \cite{adam}.   Both nets were trained until the loss on a validation set plateaued. The error-detecting net was trained for $700$K iterations (approximately one week), while the error-correcting net was trained for $1.7$M iterations (approximately three weeks).
 
 \end{appendices}
 
