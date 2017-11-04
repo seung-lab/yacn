@@ -38,7 +38,7 @@
 
 In this section, we describe our baseline segmentation pipeline, which is similar to what is described in~\cite{kisuk}.
 
-\subsection{Architecture}
+\subsection{Network architecture}
 
 \begin{figure}[!b]
 \centering
@@ -49,6 +49,10 @@ In this section, we describe our baseline segmentation pipeline, which is simila
 \end{figure}
 
 \subsection{Dataset}
+Our dataset is a sample of mouse primary visual cortex (V1) acquired using
+transmission electron microscopy at the Allen Institute for Brain Science. The
+voxel resolution is $3.6~\text{nm} \times 3.6~\text{nm} \times 40~\text{nm}$.
+
 A team of tracers produced multiple volumes of gold standard dense reconstruction, in total $20$ volumes of size $512 \times 512 \times 100$. We trained our boundary detector using $19$ volumes and used the last volume for training validation. We then applied the trained boundary detector on a new image volume of size $2048 \times 2048 \times 100$ to obtain a preliminary segmentation, which was then proofread by the tracers to generate a bootstrapped ground truth volume. This volume was used to optimize the parameters for watershed and mean affinity agglomeration. Finally, the optimized segmentation pipeline was applied to generate further bootstrapped ground truth for the error detection and correction.
 
 \subsection{Training procedures}
