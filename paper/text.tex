@@ -81,7 +81,7 @@ We implement both error detection and error correction using 3D multiscale convo
 
 We find it especially interesting and natural to combine the error-detecting and error-correcting nets in the following way. To create the candidate object mask for the error-correcting net from a baseline segmentation, one can simply take the union of all erroneous segments as found by the error-detecting net. Since the error rate in the baseline segmentation is already low, this union is small and it is easy to select out a single object.
 
-We contend that our approach decomposes the neuron segmentation problem into two strictly easier pieces. First, we hypothesize that recognizing an error is much easier than producing the correct answer. Indeed, humans are often able to detect errors using only morphological cues such as abrupt terminations of axons, but may have difficulty actually finding the correct extension. 
+We contend that our approach decomposes the neuron segmentation problem into two strictly easier pieces. First, we hypothesize that recognizing an error is much easier than producing the correct answer. Indeed, humans are often able to detect errors using only morphological cues such as abrupt terminations of axons, but may have difficulty actually finding the correct extension.
 
 On the other hand, if the error-detection network has high accuracy and the initial set of errors is sparse, then the error correction module only needs to prune away a small number of irrelevant supervoxels from the candidate mask described above. This contrasts with the flood-filling task which involves an unconstrained search for a few supervoxels to add. Given that most supervoxels are \textit{not} a part of the object to be reconstructed, an upper bound on the object is more valuable than a lower bound. Furthermore, selective application of the error correction module near likely errors loosens our computational budget.
 
@@ -89,7 +89,7 @@ In this paper, we support the intuition above by demonstrating high accuracy det
 
 %Furthermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
 
-%Our approach is to decompose the problem of refining a given segmentation into two easier problems: error detection and error correction. As a wise man once said, recognizing your faults is the first step towards fixing them. 
+%Our approach is to decompose the problem of refining a given segmentation into two easier problems: error detection and error correction. As a wise man once said, recognizing your faults is the first step towards fixing them.
 
 
 %In this paper, we will demonstrate the feasibility of high quality error detection. We will also demonstrate the effectiveness of error detection in directing the attention of an error correction module. We expect our error detector will be independently useful for directing human proofreading effort.
@@ -182,13 +182,14 @@ A team of tracers produced multiple volumes of gold standard dense reconstructio
 Producing the gold standard segmentation required a total of $\sim 560$ tracer hours, while producing the bootstrapped ground truth required $\sim 670$ tracer hours.
 
 \subsection{Baseline segmentation}
-Our baseline segmentation was produced using a pipeline of multiscale convolutional networks for neuronal boundary detection, watershed, and mean affinity agglomeration~\cite{kisuk}. We describe the pipeline in detail in Appendix~\ref{appendix:baseline}. The segmentation performance values reported for the baseline are taken at a mean affinity agglomeration threshold of 0.23, which minimizes the total variation of information error metric on the test volumes.
+Our baseline segmentation was produced using a pipeline of multiscale convolutional networks for neuronal boundary detection, watershed, and mean affinity agglomeration~\cite{kisuk}. We describe the pipeline in detail in Appendix~\ref{appendix:baseline}. The segmentation performance values reported for the baseline are taken at a mean affinity agglomeration threshold of 0.23, which minimizes the variation of information error metric~\cite{meila2007,vi} on the test volumes.
 
 \subsection{Training procedures}
 \paragraph{Sampling procedure}
 \label{sec:sampling}
 Here we describe our procedure for choosing a random point location in a segmentation. Uniformly random sampling is unsatisfactory since large objects such as dendritic shafts will be overrepresented. Instead, given a segmentation, we sample a location $(x,y,z)$ with probability inversely proportional to the fraction of a window of size $128 \times 128 \times 16$ centred at $(x,y,z)$ which is occupied by the object containing the central pixel.
-\subsection{Training of error detector}
+
+\paragraph{Training of error detector}
 An initial segmentation containing errors was produced using our baseline neuronal boundary detector combined with mean affinity agglomeration at a threshold of 0.3. Point locations were sampled according to the sampling procedure specified in \ref{sec:sampling}. We augmented all of our data with rotations and reflections.
 
 \subsection{Training of error corrector}
@@ -243,9 +244,10 @@ We trained one error detector with access to the raw image and one without. The 
     \bottomrule
   \end{tabular}
 \end{table}
+
 In order to demonstrate the importance of error detection in error correction, ran two experiments: one in which the binary mask input to the error corrector was simply the union of all segments in the window (``without advice''), and one in which the binary mask was the union of all segments with a detected error (``with advice''). In the ``without advice'' mode, the network is essentially asked to reconstruct the object overlapping the central pixel in one shot. Table \ref{table:vi_scores} shows that advice confers a considerable advantage in performance on the error corrector.
 
-It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See Appendix \ref{appendix:vi} for a precise definition of $VI(i)$. 
+It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See Appendix \ref{appendix:vi} for a precise definition of $VI(i)$.
 
 We also computed the number of errors from the set in $\ref{sec:detection_results}$ that were fixed or introduced by our iterative refinement procedure. These numbers should be taken with a grain of salt since topologically insignificant changes could result in errors. However, $\ref{table:errors_fixed}$ shows that our iterative refinement procedure significantly reduced the number of remaining errors.
 
@@ -400,14 +402,14 @@ We define the split and merge scores for ground truth segment $i$ as
 	VI_{split}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/p_i)\\
 	VI_{merge}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/q_j)
 \end{align*}
-Both quantities have units of bits. $VI_{split}(i)$ is zero iff ground truth segment $i$ is contained within a segment in the proposed segmentation, while $VI_{merge}(i)$ is zero iff ground truth segment $i$ is the union of one or more segments in the proposed segmentation. The total score $VI_{split}$ or $VI_{merge}$ is a weighted sum of the per-object scores $VI_{split}(i)$, $VI_{merge}(i)$ respectively. 
+Both quantities have units of bits. $VI_{split}(i)$ is zero iff ground truth segment $i$ is contained within a segment in the proposed segmentation, while $VI_{merge}(i)$ is zero iff ground truth segment $i$ is the union of one or more segments in the proposed segmentation. The total score $VI_{split}$ or $VI_{merge}$ is a weighted sum of the per-object scores $VI_{split}(i)$, $VI_{merge}(i)$ respectively.
 
 
 %-------------------------------------------------------------------------------
 % Section B. Training Details
 %-------------------------------------------------------------------------------
 \section{Training Details}
-The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error correction network trained for 1,700,000 iterations (approximately three weeks).
+The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error-correcting network trained for 1,700,000 iterations (approximately three weeks).
 
 
 \end{appendices}
