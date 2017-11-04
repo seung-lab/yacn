@@ -253,6 +253,8 @@ To measure the quality of error detection, we densely sampled points in our test
 
 We trained one error detector with access to the raw image and one without. The network's admirable performance even without access to the image as seen in Figure~$\ref{fig:error_detection_pr}$ supports our hypothesis that error detection is a relatively easy task and can be performed using only shape cues.
 
+Merge errors qualitatively appear to be especially easy for the network to detect; an example is shown in Figure~\ref{fig:x_error}.
+
 \begin{figure}
 \begin{center}
 	\includegraphics[width=0.65\linewidth]{pr.pdf}
@@ -300,6 +302,8 @@ In order to demonstrate the importance of error detection to error correction, w
 It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the cumulative distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See the appendix for a precise definition of $VI(i)$.
 
 The number of errors from the set in Sec. $\ref{sec:detection_results}$ that were fixed or introduced by our iterative refinement procedure is shown in \ref{table:errors_fixed}. These numbers should be taken with a grain of salt since topologically insignificant changes could result in errors. Regardless, it is clear that our iterative refinement procedure fixed a significant fraction of the remaining errors and that ``advice'' improves the error corrector.
+
+The results are qualitatively impressive as well. The error-correcting network is sometimes able to correctly merge disconnected objects, for example in Figure~\ref{fig:difficult}.
 
 \begin{figure}
 \begin{center}
