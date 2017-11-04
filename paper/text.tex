@@ -89,7 +89,7 @@ In this paper, we support the intuition above by demonstrating high accuracy det
 
 %Furthermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
 
-A further novelty of our work is that our error-correcting net is trained to produce a vector field via metric learning, and the vector field is used to prune the object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{fathi2017metric}.
+A further novelty of our work is that our error-correcting net is trained to produce a vector field via metric learning, and the vector field is used to prune the object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}.
 
 Finally, our multiscale convolutional net architecture, while similar in spirit to UNet [cite], has some novelty.  [Kisuk describe here]
 
