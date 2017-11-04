@@ -36,7 +36,7 @@
 \section{Baseline Neuronal Boundary Detection}
 \label{appendix:baseline}
 
-In this section we describe
+In this section, we describe our baseline segmentation pipeline, which is similar to what is described in~\cite{kisuk}.
 
 \subsection{Architecture}
 
@@ -49,13 +49,24 @@ In this section we describe
 \end{figure}
 
 \subsection{Dataset}
+A team of tracers produced multiple volumes of gold standard dense reconstruction, in total $20$ volumes of size $512 \times 512 \times 100$. We trained our boundary detector using $19$ volumes and used the last volume for training validation. We then applied the trained boundary detector on a new image volume of size $2048 \times 2048 \times 100$ to obtain a preliminary segmentation, which was then proofread by the tracers to generate a bootstrapped ground truth volume. This volume was used to optimize the parameters for watershed and mean affinity agglomeration. Finally, the optimized segmentation pipeline was applied to generate further bootstrapped ground truth for the error detection and correction.
 
-\subsection{Training}
+\subsection{Training procedures}
+Our boundary detection networks were implemented based on the Caffe deep
+learning framework~\cite{jia2014caffe}. To train our models, we minimized the
+binomial cross-entropy loss with class-rebalancing using the Adam
+optimizer~\cite{adam}, initialized with $\alpha=0.001$, $\beta_1=0.9$,
+$\beta_2=0.999$, and $\epsilon=0.01$. The network weights were initialized
+following He et al.~\cite{he2015delving}. The learning rate (or step size
+parameter $\alpha$ in the Adam optimizer) was halved when validation loss
+plateaud out, up to five times (at $35$K, $175$K, $250$K, $300$K, and $480$K
+iterations). We used a single patch of size $158\times158\times32$ (i.e.
+minibatch of size 1) to compute gradients at each training iteration. The
+training lasted for $800$K iterations until convergence, which took about five
+days on a single NVIDIA Titan X Pascal GPU.
 
-\subsection{Postprocessing}
-
-\subsection{Inference}
-
+\subsection{Inference and postprocessing}
+We perform \emph{overlap-blending} inference followed by watershed and mean affinity agglomeration~\cite{kisuk}. We refer the interested readers to~\cite{kisuk} for further details.
 
 %-------------------------------------------------------------------------------
 % Section B. Network Architecture
@@ -102,6 +113,8 @@ Both quantities have units of bits. $VI_{split}(i)$ is zero iff ground truth seg
 \section{Training details}
 The neural networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer \cite{adam}.   Both networks were trained until the loss on a validation set plateaued. The error detection network trained for 700,000 iterations (approximately one week), while the error-correcting network trained for 1,700,000 iterations (approximately three weeks).
 
-
 \end{appendices}
+
+\bibliography{bib}
+
 \end{document}
