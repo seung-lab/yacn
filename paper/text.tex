@@ -163,7 +163,7 @@ We would like to iterate until every location is zero in the error map or has be
 
 %In this section, we present a greedy algorithm which combines the error detector and the error corrector to greedily update an initial segmentation. We assume that we are provided with an initial segmentation along with a strict over-segmentation. We term the segments in the over-segmentation supervoxels. Throughout the error correction phase, we maintain a graph whose vertices are supervoxels and whose connected components are segments in the proposed segmentation.
 
-%Let $L$ be a list of locations densely sampled from the image. We say that an error is detected at a location of the the error detector reports a value of >0.25 on a window centred at that location. For each location in the 
+%Let $L$ be a list of locations densely sampled from the image. We say that an error is detected at a location of the the error detector reports a value of >0.25 on a window centred at that location. For each location in the
 
 \section{Experiments}
 \subsection{Dataset}
@@ -316,14 +316,26 @@ or the U.S. Government.
 
 \bibliography{bib}
 \begin{appendices}
+
+\section{Baseline Neuronal Boundary Detection}
+\label{appendix:baseline}
+
+\begin{figure}
+\centering
+\includegraphics[width=1.0\linewidth]{baseline.pdf}
+
+\caption{Architectures for the baseline neuronal boundary detection. Each node represents a layer and the number inside represents the number of feature maps. The layers closer to the top of the diagram have lower resolution than the layers near the bottom. The diagonal arrows represent strided convolutions, while the horizontal arrows represent skip connections.}
+\label{fig:architecture}
+\end{figure}
+
 \section{Network Architectures}
 \label{appendix:architecture}
 
 \begin{figure}
 \centering
-\includegraphics[width=1.0\linewidth]{error_detector.pdf}
+\includegraphics[width=1.0\linewidth]{detector.pdf}
 \centering
-\includegraphics[width=1.0\linewidth]{error_corrector.pdf}
+\includegraphics[width=1.0\linewidth]{corrector.pdf}
 
 \caption{Architectures for the error detection and error correction modules respectively. Each node represents a layer and the number inside represents the number of feature maps. The layers closer to the top of the diagram have lower resolution than the layers near the bottom. We make savings in computation by minimizing the number of high resolution feature maps. The diagonal arrows represent strided convolutions, while the horizontal arrows represent skip connections.}
 \label{fig:architecture}
