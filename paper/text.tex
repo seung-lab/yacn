@@ -113,7 +113,18 @@ In this paper, we support the intuition above by demonstrating high accuracy det
 
 %Furthermore, we observe the interesting phenomenon that it is often much easier to detect an error than to find the correct segmentation. Indeed, humans are usually able to detect a segmentation error without even looking at the original image; they look for neurites that terminate prematurely or x-shaped junctions indicating incorrectly merged segments. However, the incredible density of information in neural tissue makes searching for the correction difficult.
 
-Some of the design choices we made in our neural networks may be of interest to other researchers. Our error-correcting net is trained to produce a vector field via metric learning instead of directly producing an object mask. The vector field resembles a semantic labeling of the image, so this approach blurs the distinction between instance and semantic segmentation. This idea is relatively new in computer vision \cite{harley2015metric,fathi2017metric,brabandere2017metric}. Our multiscale convolutional net architecture, while similar in spirit to the populur U-Net~\cite{unet}, has some novelty.  [Kisuk describe here, something about recurrence, weight sharing, etc.]
+Some of the design choices we made in our neural networks may be of interest to
+other researchers. Our error-correcting net is trained to produce a vector field
+via metric learning instead of directly producing an object mask. The vector
+field resembles a semantic labeling of the image, so this approach blurs the
+distinction between instance and semantic segmentation. This idea is relatively
+new in computer vision
+\cite{harley2015metric,fathi2017metric,brabandere2017metric}. Our multiscale
+convolutional net architecture, while similar in spirit to the populur
+U-Net~\cite{unet}, has some novelty. With proper weight sharing, our model can
+be viewed as a feedback recurrent convolutional net unrolled in time (see
+Appendix for details). Although our model architecture is closely related to the
+independent works of~\cite{neuralfabric,mdnet,gridnet}, they all lack this \emph{feedback recurrent} convolutional net interpretation.
 
 \section{Error detection}
 \subsection{Task specification: detecting split and merge errors}
