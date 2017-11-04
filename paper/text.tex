@@ -242,7 +242,7 @@ In order to demonstrate the importance of error detection in error correction, r
 
 It is sometimes difficult to assess the significance of an improvement in variation of information or rand score since changes can be dominated by modifications to a few large objects. Therefore, we decomposed the variation of information into a score for each object in the ground truth. Figure \ref{fig:decomp_vi_scores} summarizes the distribution of the values of $VI(i)=VI_{merge}(i)+VI_{split}(i)$ for all segments $i$ in the ground truth. See Appendix \ref{appendix:vi} for a precise definition of $VI(i)$.
 
-The number of errors from the set in $\ref{sec:detection_results}$ that were fixed or introduced by our iterative refinement procedure is shown in \ref{table:errors_fixed}.  Our iterative refinement procedure fixed a significant fraction of the remaining errors.
+The number of errors from the set in $\ref{sec:detection_results}$ that were fixed or introduced by our iterative refinement procedure is shown in \ref{table:errors_fixed}. These numbers should be taken with a grain of salt since topologically insignificant changes could result in errors. Regardless, it is clear that our iterative refinement procedure fixed a significant fraction of the remaining errors and that ``advice'' improves the error corrector.
 
 \begin{figure}
 \begin{center}
@@ -253,7 +253,7 @@ The number of errors from the set in $\ref{sec:detection_results}$ that were fix
 \end{figure}
 
 \begin{table}[h]
-  \caption{Number of errors fixed and introduced relative to the baseline. These numbers should be taken with a grain of salt since topologically insignificant changes could result in errors.}
+  \caption{Number of errors fixed and introduced relative to the baseline}
   \label{table:errors_fixed}
   \centering
   \begin{tabular}{llll}
