@@ -39,15 +39,14 @@
 %-------------------------------------------------------------------------------
 % Section A. Baseline Neuronal Boundary Detection
 %-------------------------------------------------------------------------------
-\section{Baseline Neuronal Boundary Detection}
+\section{Baseline neuronal boundary detection}
 \label{appendix:baseline}
 
 In this section, we describe our baseline segmentation pipeline, which is
 similar to what is described in~\cite{kisuk}. The major difference is our novel
 densely multiscale 3D convolutional network architecture for neuronal boundary
-detection, which will be described in the following section. (The same
-\emph{class} of architecture was employed in error detection and error
-correction. See main text.)
+detection, which is described below. (The same \emph{class} of architecture
+was employed in error detection and error correction. See main text.)
 
 \subsection{Network architecture}
 \label{sec:deltanet}
@@ -61,10 +60,10 @@ represents a layer and the number inside represents the number of feature maps.
 The layers closer to the top of the diagram have lower resolution than the
 layers near the bottom. The diagonal arrows represent strided convolutions,
 while the horizontal arrows represent skip connections. Associated with the
-diagonal arrows, black numbers indicate filter size and red numbers indicate
-strides in $x$, $y$, and $z$-dimension. The target for our boundary detection
-net is a 3D \emph{affinity graph}~\cite{boundary_detection,kisuk,funke2017deep},
-thus outputting three channels corresponding to $x$ (green), $y$ (red), and $z$
+diagonal arrows, the numbers indicate filter size (black) and strides (red) in
+$x$, $y$, and $z$-dimension. The target for our boundary detection network is a
+3D \emph{affinity graph}~\cite{boundary_detection,kisuk,funke2017deep}, thus
+outputting three channels corresponding to $x$ (green), $y$ (red), and $z$
 (blue) affinity map, respectively.}
 
 \label{fig:boundary_detector}
@@ -85,7 +84,7 @@ allowing for \emph{dense} intermixing of multiscale features. Our model's
 \emph{dense} and \emph{fully residual} architecture allows an incremental and
 iterative top-down/bottom-up refinement of internal representation, which is in
 contrast to U-Net and variants' more restricted coarse-to-fine top-down
-refinement~\cite{pinheiro2016refine,lin2016pyramid}.
+refinement~\cite{unet,pinheiro2016refine,lin2016pyramid}.
 
 From a different point of view, Figure~\ref{fig:unfold} illustrates another
 important motivation for our densely multiscale convolutional net architecture.
@@ -102,7 +101,7 @@ the higer spatial-frequency information relayed through the bottom-up
 feedforward connections.
 
 Note that we did not use weight sharing in the neuronal boundary detection net,
-whereas we did use weight sharing between some convolutions at the same height
+whereas we used weight sharing between some convolutions at the same height
 in the error-detecting and error-correcting nets (Figure 2 and
 Figure~\ref{fig:corrector}).
 
@@ -110,35 +109,38 @@ Figure~\ref{fig:corrector}).
 \centering
 \includegraphics[width=0.65\linewidth]{unfold.pdf}
 
-\caption{Feedback recurrent convolutional network unrolled in time.
-See~the text in Section~\ref{sec:deltanet} for further details.}
+\caption{Feedback recurrent convolutional network unrolled in time
+(see Section~\ref{sec:deltanet} for details).}
 
 \label{fig:unfold}
 \end{figure}
 
-\paragraph{Architectural details} Due to the anisotropy of the resolution of
-the images in our dataset, we design our networks such that the first
-convolutions are exclusively 2D while later convolutions are 3D
-(Figure~\ref{fig:boundary_detector}). The field of view of a unit in the higher
-layers is therefore roughly cubic. To limit the number of parameters in our
-model, we factorized all 3D convolutions into a 2D convolution followed by a 1D
-convolution in $z$-dimension. We employed exponential linear units
-(ELUs,~\cite{elu}) as nonlinearity, except for the output layer with logistic
-activation functions.
+\paragraph{Architectural details} Due to the anisotropy of the resolution of the
+images in our dataset, we design our networks such that the first convolutions
+are exclusively 2D while later convolutions are 3D
+(Figure~\ref{fig:boundary_detector}). The receptive field of a neuron in the
+higher layers is therefore nearly isotropic and roughly cubic in physical size.
+To limit the number of parameters in our model, we factorized all 3D
+convolutions into a 2D convolution followed by a 1D convolution in
+$z$-dimension. We employed exponential linear units (ELUs,~\cite{elu}) as
+nonlinearity, except for the output layer with logistic activation functions. We
+trained our nets to generate a 3D affinity
+graph~\cite{boundary_detection,kisuk,funke2017deep}, thus outputting three
+channels corresponding to $x$, $y$, and $z$-affinity map, respectively.
 
 \subsection{Dataset}
 Our dataset is a sample of mouse primary visual cortex (V1) acquired using
 transmission electron microscopy at the Allen Institute for Brain Science. The
 voxel resolution is $3.6~\text{nm} \times 3.6~\text{nm} \times 40~\text{nm}$.
 
-A team of tracers produced multiple volumes of gold standard dense
-reconstruction, in total $20$ volumes of size $512 \times 512 \times 100$. We
-trained our boundary detector using $19$ volumes and used the last volume for
-training validation. We then applied the trained boundary detector on a new
-image volume of size $2048 \times 2048 \times 100$ to obtain a preliminary
-segmentation, which was then proofread by the tracers to generate a bootstrapped
-ground truth volume. This volume was used to optimize the parameters for
-watershed and mean affinity agglomeration. Finally, the optimized segmentation
+Human experts produced multiple volumes of gold standard dense reconstruction,
+in total $20$ volumes of size $512 \times 512 \times 100$. We trained our
+boundary detector using $19$ volumes and used the last volume for training
+validation. We applied the trained boundary detector on a new image volume of
+size $2048 \times 2048 \times 100$ to obtain a preliminary segmentation, which
+was then proofread by the experts to generate a bootstrapped ground truth
+volume. This volume was used to optimize the parameters for watershed and mean
+affinity agglomeration~\cite{kisuk}. Finally, the optimized segmentation
 pipeline was applied to generate further bootstrapped ground truth for the error
 detection and correction tasks.
 
@@ -177,8 +179,8 @@ refer the interested readers to~\cite{kisuk} for further details.
 \label{appendix:vi}
  Recall that the variation of information between two segmentations may be computed as
 \begin{align*}
-	VI_\text{split}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/p_i),\\
-	VI_\text{merge}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log(r_{ij}/q_j),\\
+	VI_\text{split}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log\left(r_{ij}/p_i\right),\\
+	VI_\text{merge}&=-\frac 1 {\sum_{i,j} r_{ij}} \sum_{i,j} r_{ij} \log\left(r_{ij}/q_j\right),\\
 	p_i&=\sum_j r_{ij},\\
 	q_j&=\sum_i r_{ij},
 \end{align*}
@@ -187,7 +189,7 @@ where $r_{ij}$ is the number of voxels in common between the $i^\text{th}$ segme
 We define the split and merge scores for ground truth segment $i$ as
 \begin{align*}
 	VI_\text{split}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/p_i),\\
-	VI_\text{merge}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/q_j),
+	VI_\text{merge}(i) &= -\sum_j r_{ij}/p_i \log(r_{ij}/q_j).
 \end{align*}
 Both quantities have units of nats. $VI_\text{split}(i)$ is zero if and only if
 ground truth segment $i$ is contained within a segment in the proposed
@@ -200,8 +202,14 @@ per-object scores $VI_\text{split}(i)$, $VI_\text{merge}(i)$ respectively.
 %-------------------------------------------------------------------------------
 % Section B. Training Details
 %-------------------------------------------------------------------------------
-\section{Training details}
-The error-detecting and error-correcting networks were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX Pascal GPUs with synchronous gradient descent. We used the Adam optimizer, initialized with $\alpha=0.001$, $\beta_1=0.95$, $\beta_2=0.9995$, and $\epsilon=0.1$ \cite{adam}.   Both nets were trained until the loss on a validation set plateaued. The error-detecting net was trained for $700$K iterations (approximately one week), while the error-correcting net was trained for $1.7$M iterations (approximately three weeks).
+\section{Training details} The error-detecting and error-correcting networks
+were implemented in TensorFlow \cite{tensorflow} and trained using 4 TitanX
+Pascal GPUs with synchronous gradient descent. We used the Adam optimizer,
+initialized with $\alpha=0.001$, $\beta_1=0.95$, $\beta_2=0.9995$, and
+$\epsilon=0.1$ \cite{adam}.   Both nets were trained until the loss on a
+validation set plateaued. The error-detecting net was trained for $700$K
+iterations (approximately one week), while the error-correcting net was trained
+for $1.7$M iterations (approximately three weeks).
 
 % \end{appendices}
 \newpage
