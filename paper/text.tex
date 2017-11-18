@@ -72,29 +72,33 @@ the error-detecting net.
 \begin{figure}[t!]
 	\begin{center}
 	\begin{subfigure}[t]{0.45\textwidth}
-		\includegraphics[width=1.0\linewidth]{detection_task.jpg}
-		\caption{Error detection task for split (top) and merge (bottom) errors. The desired output is an error map (red). A voxel in the error map is red if and only if a window centered on it contains a split or merge error. We also consider a variant of the task in which the object mask is the sole input; the grayscale image is not used.}
+		\includegraphics[width=1.0\linewidth]{detection_task.pdf}
+		\caption{Error detection task for split (top) and merge (bottom) errors. The desired output is an error map. A voxel in the error map is lit up if and only if a window centered on it contains a split or merge error. We also consider a variant of the task in which the object mask is the sole input.}
 		\label{fig:error_detection_cartoon}
 	\end{subfigure}
 \hfill
 	\begin{subfigure}[t]{0.45\textwidth}
-	\includegraphics[width=1.0\linewidth]{correction_task.jpg}
-	\caption{The object mask pruning task. The input mask is assumed to be a superset of a true object. The desired output (right) is the true object containing the central voxel (black dot). In the first case there is nothing to prune, while in the second case the object not overlapping the central voxel is erased.}
+	\includegraphics[width=1.0\linewidth]{correction_task.pdf}
+	\caption{The object mask pruning task. The input mask is assumed to be a superset of a true object. The desired output (right) is the true object containing the central voxel (center circle). In the first case there is nothing to prune, while in the second case the object not overlapping the central voxel is erased.}
 	\label{fig:error_correction_cartoon}
 \end{subfigure}
         \end{center}
-        \caption{Error detection and correction tasks.  For both tasks, the inputs are a candidate object mask (blue) and the original image (grayscale). Note that diagrams are 2D for illustrative purposes, but in reality the inputs and outputs are 3D.}
+        \caption{Error detection and correction tasks.  For both tasks, the inputs are a candidate object mask and the original image. Note that diagrams are 2D for illustrative purposes, but in reality the inputs and outputs are 3D.}
 \end{figure}
 
 \section{Introduction}
+
 While neuronal circuits can be reconstructed from volumetric electron
-microscopic imagery, the process has historically
-\cite{white1986structure} and even recently \cite{schmidt2017axonal}
-been highly laborious. One of the most time-consuming reconstruction
-tasks is the tracing of the brain's ``wires,'' or neuronal branches.
-This task is an example of instance segmentation, and can be automated through computer detection of the boundaries between neurons. Convolutional nets were first applied to neuronal boundary detection a decade ago \cite{jain2007supervised, boundary_detection}.
-Since then convolutional nets have become the standard approach, and
-the accuracy of boundary detection has become impressively high  \cite{zeng2017deep, beier2017multicut, kisuk, funke2017deep}.
+microscopic imagery, the process has historically \cite{white1986structure} and
+even recently \cite{schmidt2017axonal} been highly laborious. One of the most
+time-consuming reconstruction tasks is the tracing of the brain's ``wires,'' or
+neuronal branches. This task is an example of instance segmentation, and can be
+automated through computer detection of the boundaries between neurons.
+Convolutional networks were first applied to neuronal boundary detection a
+decade ago \cite{jain2007supervised, boundary_detection}. Since then
+convolutional nets have become the standard approach, and the accuracy of
+boundary detection has become impressively high  \cite{zeng2017deep,
+beier2017multicut, kisuk, funke2017deep}.
 
 Given the low error rates, it becomes helpful to think of subsequent processing steps in terms of modules that detect and correct errors. In the error detection task (Figure~\ref{fig:error_detection_cartoon}), the input is the raw image and a binary mask that represents a candidate object. The desired output is a map containing the locations of split and merge errors in the candidate object. Related work on this problem has been restricted to detection of merge errors only by either hand-designed \cite{multipass} or learned \cite{mergenet} computations. However, a typical segmentation contains both split and merge errors, so it would be desirable to include both in the error detection task.
 
