@@ -202,13 +202,13 @@ where $(0,0,0)$ is the central voxel. When an over-segmentation is available, we
 \section{How the error detector can ``advise'' the error corrector}
 \begin{figure}
 \begin{center}
-	\includegraphics[width=0.8\linewidth]{errors.jpg}
+	\includegraphics[width=0.85\linewidth]{errors.jpg}
 	\caption{An example of a mistake in the initial segmentation. The dendrite is missing a spine. The red overlay on the left shows the combined error map (defined in Section~\ref{sec:detection_spec}); the stump in the centre of the image was clearly marked as an error.}
 
-	\includegraphics[width=0.8\linewidth]{neighbours.jpg}
+	\includegraphics[width=0.85\linewidth]{neighbours.jpg}
 	\caption{The right shows all objects which contained  a detected error in the vicinity. For clarity, each supervoxel was drawn with a different colour. The union of these objects is the binary mask which is provided as input to the error correction network. For clarity, these objects were clipped to lie within the white box representing the field of view of our error correction network. The output of the error correction network is overlaid in blue on the left.}
 
-	\includegraphics[width=0.8\linewidth]{final.jpg}
+	\includegraphics[width=0.85\linewidth]{final.jpg}
 	\caption{The supervoxels assembled in accordance with the output of the error correction network.}
 \end{center}
 \end{figure}
@@ -318,7 +318,7 @@ Merge errors qualitatively appear to be especially easy for the network to detec
 
 \begin{figure}
 \begin{center}
-	\includegraphics[width=0.85\linewidth]{pr.pdf}
+	\includegraphics[width=0.8\linewidth]{pr.pdf}
 	\caption{Precision and recall for error detection, both with and without access to the raw image. In the test volume, there are $8248$ error free locations and $944$ locations with errors. In practice, we use threshold which guarantees >~95\% recall and >~85\% precision.}
 	\label{fig:error_detection_pr}
 \end{center}
@@ -393,7 +393,7 @@ Figure~\ref{fig:difficult}.
 
 \begin{figure}
 \begin{center}
-\includegraphics[width=0.9\linewidth]{per_object_vi.pdf}
+\includegraphics[width=0.85\linewidth]{per_object_vi.pdf}
 \caption{Per-object VI scores for the 940 reconstructed objects in our test volume. Almost 800 objects are completely error free in our segmentation. These objects are likely all axons; almost every dendrite is missing a few spines.}
 \label{fig:decomp_vi_scores}
 \end{center}
@@ -421,8 +421,8 @@ Figure~\ref{fig:difficult}.
 \label{table:timing}
   \centering
   \begin{tabular}{ccc}
-	  \toprule
-	Boundary Detection & Error Detection & Error Correction\\
+    \toprule
+	Boundary detection & Error detection & Error correction\\
 	\midrule
 	18 mins & 25 mins & 55 mins\\
 	\bottomrule
@@ -486,20 +486,20 @@ natural in view of recent work on generative adversarial networks
 %While $\cite{floodfilling}$ performs inference densely, we selectively apply our error correction module near likely errors. This comparatively reduces our computational cost. We sacrifice end-to-end training for this advantage.
 
 %Our main novelty relative to their approach is the use of the advice of an error detector to bias flood-filling. While they present their network with a partially reconstructed object and ask for a completion, we present our network with the union of all possibly incorrect segments in a window and ask the network to split out a single object. Since the typical error rate is already low, this ``advice'' on which objects to consider is informative and significantly improves the performance of our flood-filling networks.
-\subsubsection*{Author contributions}
+\subsubsection*{Author contributions \& acknowledgements}
 JZ conceptualized the study and conducted most of the experiments and
 evaluation. IT (along with Will Silversmith) created much of the infrastructure
 necessary for visualization and running our algorithms at scale. KL produced the
 baseline segmentation. HSS helped with the writing.
 
-\subsubsection*{Acknowledgements}
+% \subsubsection*{Acknowledgements}
 We are grateful to Clay Reid, Nuno da Costa, Agnes Bodor, Adam Bleckert, Dan
 Bumbarger, Derrick Britain, JoAnn Buchannan, and Marc Takeno for acquiring the
 TEM dataset at the Allen Institute for Brain Science. The ground truth
 annotation was created by Ben Silverman, Merlin Moore, Sarah Morejohn, Selden
 Koolman, Ryan Willie, Kyle Willie, and Harrison MacGowan. We thank Nico Kemnitz
 for proofreading a draft of this paper. We thank Jeremy Maitin-Shepard at Google
-and the other contributors to the neuroglancer project for creating an
+and the other contributors to the Neuroglancer project for creating an
 invaluable visualization tool.
 
 We acknowledge NVIDIA Corporation for providing us with early access to Titan X
