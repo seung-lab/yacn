@@ -27,7 +27,8 @@
 \usepackage[numbers]{natbib}
 \usepackage[toc,page]{appendix}
 \usepackage{xr}
-\externaldocument{appendices}
+\usepackage{rotating}
+%\externaldocument{appendices}
 
 \bibliographystyle{plainnat}
 
@@ -509,5 +510,7 @@ policies or endorsements, either expressed or implied, of IARPA, DoI/IBC, or the
 U.S. Government.
 
 \bibliography{bib}
+
+\include{appendices_content}
 
 \end{document}
